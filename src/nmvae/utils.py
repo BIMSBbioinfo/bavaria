@@ -70,7 +70,7 @@ class Sampling(layers.Layer):
         z_mean = tf.expand_dims(z_mean, axis=1)
         z_log_var = tf.expand_dims(z_log_var, axis=1)
         batch = tf.shape(z_mean)[0]
-        dim = tf.shape(z_mean)[1]
+        dim = tf.shape(z_mean)[-1]
         epsilon = tf.keras.backend.random_normal(shape=(batch, self.nsamples, dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
     def get_config(self):
