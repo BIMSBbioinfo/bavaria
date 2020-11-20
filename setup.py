@@ -25,9 +25,9 @@ def read(*names, **kwargs):
 
 setup(
     name='nmvae',
-    version='0.0.0',
+    version='0.0.1',
     license='LGPL-3.0-or-later',
-    description='Collection of variational autoencoders',
+    description='Negative multinomial variational auto-encoder',
     long_description='%s\n%s' % (
         re.compile('^.. start-badges.*^.. end-badges', re.M | re.S).sub('', read('README.rst')),
         re.sub(':[a-z]+:`~?(.*?)`', r'``\1``', read('CHANGELOG.rst'))
@@ -78,7 +78,7 @@ setup(
         'scikit-learn',
         'scipy',
         'umap-learn',
-        'scregseg',
+        #'scregseg',
         # eg: 'aspectlib==1.1.1', 'six>=1.7',
     ],
     extras_require={
