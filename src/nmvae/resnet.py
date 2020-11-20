@@ -20,6 +20,7 @@ from nmvae.utils import AddBiasLayer
 from nmvae.utils import NegativeMultinomialEndpoint
 from nmvae.countmatrix import CountMatrix
 
+
 def load_data(data, regions, cells):
     cmat = CountMatrix.from_mtx(data, regions, cells)
     cmat = cmat.filter(binarize=True)
@@ -32,6 +33,7 @@ def load_data(data, regions, cells):
     colnames = cmat.regions.apply(lambda row: f'{row.chrom}_{row.start}_{row.end}',axis=1)
 
     return x_data, rownames, colnames
+
 
 def resnet_vae_params(input_dims, args):
     params = OrderedDict(
