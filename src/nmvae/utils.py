@@ -5,13 +5,13 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import numpy as np
-from countmatrix import CountMatrix
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import silhouette_score
-from scipy.io import mmread
-from scipy.sparse import issparse, coo_matrix, hstack
-from scipy.stats import iqr
-from collections import OrderedDict
+#:from countmatrix import CountMatrix
+#from sklearn.model_selection import train_test_split
+#from sklearn.metrics import silhouette_score
+#from scipy.io import mmread
+from scipy.sparse import issparse, coo_matrix
+#from scipy.stats import iqr
+#from collections import OrderedDict
 
 from keras.models import load_model
 
@@ -197,15 +197,10 @@ class VAE(keras.Model):
         
         custom_objects = {'Sampling': Sampling,
                           'KLlossLayer': KLlossLayer,
-                          'MSEEndpoint': MSEEndpoint,
                           'ClipLayer': ClipLayer,
-                          'BinaryEndpoint': BinaryEndpoint,
-                          'MultinomialEndpoint': MultinomialEndpoint,
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
                           'AddBiasLayer': AddBiasLayer,
                           'ScalarBiasLayer':ScalarBiasLayer,
-                          'DownsamplingLayer': DownsamplingLayer,
-                          'PaddingLayer': PaddingLayer,
                          }
         encoder = load_model(f + '_encoder_' + s, custom_objects=custom_objects)
         decoder = load_model(f + '_decoder_' + s, custom_objects=custom_objects)

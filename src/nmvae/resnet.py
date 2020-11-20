@@ -10,7 +10,7 @@ from tensorflow.keras.callbacks import CSVLogger
 
 from scipy.stats import iqr
 from sklearn.model_selection import train_test_split
-from nmvae.utils import to_dataset, to_sparse, load_data
+from nmvae.utils import to_dataset, to_sparse
 from nmvae.utils import VAE
 from nmvae.utils import ClipLayer
 from nmvae.utils import KLlossLayer

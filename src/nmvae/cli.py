@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import keras
+from nmvae import __version__
 from nmvae import VAE
 from nmvae.resnet import MetaVAE
 from nmvae.resnet import load_data
@@ -30,7 +31,8 @@ import logging
 
 def main(args=None):
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser('nmvae',
+                                     description=f'Negative multinomial variational auto-encoders - v{__version__}')
 
     parser.add_argument('-data', dest='data', type=str,
                         help="Matrix location. Matrix must be in mtx format", required=True)
