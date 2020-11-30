@@ -23,8 +23,12 @@ import keras
 from nmvae import __version__
 from nmvae import VAE
 from nmvae.resnet import MetaVAE
+from nmvae.resnet import BatchMetaVAE
 from nmvae.resnet import load_data
+from nmvae.resnet import load_batch_labels
 from nmvae.resnet import resnet_vae_params
+from nmvae.resnet import resnet_vae_batch_params
+from nmvae.resnet import one_hot_encode_batches
 #from scregseg.countmatrix import CountMatrix
 import logging
 
@@ -104,18 +108,37 @@ def main(args=None):
     print(args)
 
     matrix = args.data
-    regions = args.regions# if args.regions is not None else matrix + '.bed'
-    barcodes = args.barcodes# if args.barcodes is not None else matrix + '.bct'
+    regions = args.regions
+    barcodes = args.barcodes
+    batches = args.batches
 
     # load the dataset
     cmat, barcode, regions = load_data(matrix, regions, barcodes)
 
-    input_shape = cmat.shape[-1]
-    params = resnet_vae_params(input_shape, args)
-    metamodel = MetaVAE(params,
-                        args.nrepeat, args.output,
-                        args.overwrite)
+    params = resnet_vae_params(args)
 
-    metamodel.fit(cmat, epochs=args.epochs, batch_size=args.batch_size)
+    if batches is not None:
+        print('using batch correction')
+        batches = load_batch_labels(barcode, batches)
+        params.update(resnet_vae_batch_params(batches))
 
-    metamodel.encode(cmat, barcode)
+        print(params)
+        onehot_batches = one_hot_encode_batches(batches)
+        metamodel = BatchMetaVAE(params,
+                            args.nrepeat, args.output,
+                            args.overwrite,
+                            args.feature_fraction)
+
+        metamodel.fit(cmat, onehot_batches,
+                      epochs=args.epochs,
+                      batch_size=args.batch_size)
+        metamodel.encode(cmat, onehot_batches, barcode)
+    else:
+        metamodel = MetaVAE(params,
+                            args.nrepeat, args.output,
+                            args.overwrite,
+                            args.feature_fraction)
+
+        metamodel.fit(cmat, epochs=args.epochs, batch_size=args.batch_size)
+
+        metamodel.encode(cmat, barcode)

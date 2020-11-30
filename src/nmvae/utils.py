@@ -5,13 +5,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import numpy as np
-#:from countmatrix import CountMatrix
-#from sklearn.model_selection import train_test_split
-#from sklearn.metrics import silhouette_score
-#from scipy.io import mmread
 from scipy.sparse import issparse, coo_matrix
-#from scipy.stats import iqr
-#from collections import OrderedDict
 
 from keras.models import load_model
 
@@ -29,18 +23,22 @@ def to_sparse_tensor(x):
 
 
 def to_dataset(x, y=None, batch_size=64, shuffle=True):
-    ds_x = tf.data.Dataset.from_tensor_slices(to_sparse_tensor(x))
+    ds_x = tf.data.Dataset.from_tensor_slices(to_sparse_tensor(x)).map(lambda x: tf.sparse.to_dense(x))
 
     if y is not None:
-        ds_y = tf.data.Dataset.from_tensor_slices(y)
-        ds = tf.data.Dataset.zip((ds_x, ds_y))
+        if isinstance(y, list):
+            ds_y = tf.data.Dataset.zip(tuple([tf.data.Dataset.from_tensor_slices(d) for d in y]))
+        else:
+            ds_y = tf.data.Dataset.from_tensor_slices(y)
+        ds = tf.data.Dataset.zip((ds_x,ds_y))
     else:
         ds = ds_x
 
     if shuffle:
         ds = ds.shuffle(batch_size*8)
     
-    ds = ds.batch(batch_size).map(lambda x: tf.sparse.to_dense(x))
+    #ds = ds.batch(batch_size).map(lambda x: tf.sparse.to_dense(x))
+    ds = ds.batch(batch_size)
     ds = ds.prefetch(8)
     return ds
 
@@ -253,4 +251,152 @@ class VAE(keras.Model):
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
         losses['loss'] = total_loss
         return losses
+
+    def test_step(self, data):
+        losses = dict()
+        if isinstance(data, tuple):
+            data = data[0]
+        z = self.encoder(data)
+        pred = self.decoder([z, data])
+
+        total_loss = sum(self.encoder.losses) + sum(self.decoder.losses)
+
+        losses['loss'] = total_loss
+        return losses
+
+
+class BCVAE(keras.Model):
+    def __init__(self, encoder, decoder, batcher, **kwargs):
+        super(BCVAE, self).__init__(**kwargs)
+        self.encoder = encoder
+        self.encoder_predict = keras.Model(self.encoder.inputs,
+                                           self.encoder.get_layer('z_mean').output)
+
+        self.batcher = batcher
+        self.decoder = decoder
+        self.cce = tf.keras.losses.CategoricalCrossentropy(reduction=tf.keras.losses.Reduction.SUM)
+
+    def save(self, filename):
+        if len(os.path.dirname(filename)) > 0:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+        f = filename.split('.h5')[0]
+        s='.h5'
+        self.encoder.save(f + '_encoder_' + s)
+        self.decoder.save(f + '_decoder_' + s)
+        self.batcher.save(f + '_batcher_' + s)
+
+    @classmethod
+    def create(cls, params, _create_encoder, _create_decoder, _create_batcher):
+         encoder = _create_encoder(params)
+         decoder = _create_decoder(params)
+         batcher = _create_batcher(params)
+
+         return cls(encoder, decoder, batcher)
+
+    @classmethod
+    def load(cls, filename):
+        f = filename.split('.h5')[0]
+        s='.h5'
+        
+        custom_objects = {'Sampling': Sampling,
+                          'KLlossLayer': KLlossLayer,
+                          'ClipLayer': ClipLayer,
+                          'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
+                          'AddBiasLayer': AddBiasLayer,
+                          'ScalarBiasLayer':ScalarBiasLayer,
+                         }
+        encoder = load_model(f + '_encoder_' + s, custom_objects=custom_objects)
+        decoder = load_model(f + '_decoder_' + s, custom_objects=custom_objects)
+        batcher = load_model(f + '_batcher_' + s, custom_objects=custom_objects)
+        return cls(encoder, decoder, batcher)
+
+    def save_weights(self, filename, overwrite=True, save_format=None):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        f = filename.split('.h5')[0]
+        s='.h5'
+
+        self.encoder.save_weights(f + '_encoder_' + s)
+        self.decoder.save_weights(f + '_decoder_' + s)
+        self.batcher.save_weights(f + '_batcher_' + s)
+
+    def load_weights(self, filename, by_name=False, skip_mismatch=False):
+        f = filename.split('.h5')[0]
+        s='.h5'
+
+        self.encoder.load_weights(f + '_encoder_' + s)
+        self.decoder.load_weights(f + '_decoder_' + s)
+        self.batcher.load_weights(f + '_batcher_' + s)
+
+    def call(self, data):
+        print('got tuple of length', len(data))
+        if isinstance(data, tuple):
+            data, labels = data
+        z = self.encoder(data)
+        batchpred = self.batcher(z)
+        if len(self.decoder.losses) > 0:
+            pred = self.decoder([z, data, labels])
+        else:
+            pred = self.decoder(z)
+
+        return pred, batchpred
+
+    def summary(self):
+        self.encoder.summary()
+        self.decoder.summary()
+        self.batcher.summary()
+
+    def train_step(self, data):
+        losses = dict()
+        if isinstance(data, tuple):
+            data, labels = data
+        with tf.GradientTape(persistent=True) as tape:
+            z = self.encoder(data)
+            for i, loss in enumerate(self.encoder.losses):
+                losses[f'kl_loss_{i}'] = loss
+            pred = self.decoder([z, data, labels])
+            for i, loss in enumerate(self.decoder.losses):
+                losses[f'recon_loss_{i}'] = loss
+
+            batchpred = self.batcher(z)
+            if not isinstance(batchpred, tuple):
+                batchpred = (batchpred,)
+            batch_loss = []
+            for i, (pred, labs) in enumerate(zip(batchpred, labels)):
+                batch_loss.append(self.cce(labs, tf.math.reduce_mean(pred, axis=1)))
+                losses[f'batch_loss_{i}'] = batch_loss[-1]
+
+            batch_loss = sum(batch_loss)
+            total_loss = sum(self.encoder.losses) + sum(self.decoder.losses) - batch_loss
+
+        grads = tape.gradient(total_loss, self.encoder.trainable_weights + self.decoder.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.encoder.trainable_weights + self.decoder.trainable_weights))
+
+        grads = tape.gradient(batch_loss, self.batcher.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.batcher.trainable_weights))
+
+        del tape
+        losses['loss'] = total_loss
+        return losses
+
+
+    def test_step(self, data):
+        losses = dict()
+        if isinstance(data, tuple):
+            data, labels = data
+        z = self.encoder(data)
+        pred = self.decoder([z, data, labels])
+        batchpred = self.batcher(z)
+
+        if not isinstance(batchpred, tuple):
+            batchpred = (batchpred,)
+        batch_loss = []
+        for i, (pred, labs) in enumerate(zip(batchpred, labels)):
+            batch_loss.append(self.cce(labs, tf.math.reduce_mean(pred, axis=1)))
+
+        batch_loss = sum(batch_loss)
+        total_loss = sum(self.encoder.losses) + sum(self.decoder.losses) - batch_loss
+
+        losses['loss'] = total_loss
+        return losses
+
 
