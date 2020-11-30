@@ -161,9 +161,7 @@ def create_decoder(params):
     return decoder
 
 class MetaVAE:
-    def __init__(self, params, repeats, output, overwrite):
-        self.input_dim = params['datadims']
-        self.nlatent = params['latentdims']
+    def __init__(self, params, repeats, output, overwrite, feature_fraction=1.):
         self.repeats = repeats
         self.output = output
         self.models = []
@@ -174,7 +172,7 @@ class MetaVAE:
         
         os.makedirs(output, exist_ok=True)
         self.space = params
-        #resnet_vae_params(input_dim, nlatent)
+        self.feature_fraction = feature_fraction
         
 
     def fit(self, x_data,
@@ -183,8 +181,15 @@ class MetaVAE:
            ):
 
         space = self.space
-        x_train, x_test = train_test_split(x_data, test_size=validation_split,
-                                           random_state=42)
+        x_data_t = x_data.T.tocsr()
+       
+        for r in range(self.repeats):
+            # random feature subset
+            if self.feature_fraction < 1.:
+               x_data_ts, _ = train_test_split(x_data_t, train_size=self.feature_fraction, random_state=r*10)
+               x_data_ts = x_data_ts.T.tocsr()
+            else:
+               x_data_ts = x_data
 
         tf_X = to_dataset(to_sparse(x_train), shuffle=shuffle, batch_size=batch_size)
 
@@ -245,7 +250,29 @@ class MetaVAE:
                 model = VAE.load(os.path.join(self.output, f'repeat_{r+1}', 'model.h5'))
                 self.models.append(model)
 
-    def encode(self, data, barcode, batch_size=64):
+    def encode_subset(self, data, barcode, batch_size=64):
+
+        dfs = []
+        x_data_t = data.T.tocsr()
+        for i, model in enumerate(self.models):
+            if self.feature_fraction < 1.:
+               x_data_ts, _ = train_test_split(x_data_t, train_size=self.feature_fraction, random_state=i*10)
+               x_data_ts = x_data_ts.T.tocsr()
+            else:
+               x_data_ts = data
+
+            tf_x = to_dataset(to_sparse(x_data_ts), shuffle=False, batch_size=batch_size)
+
+            predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
+            out = predmodel.predict(tf_x)
+            df = pd.DataFrame(out, index=barcode, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
+            df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
+            dfs.append(df)
+        df = pd.concat(dfs, axis=1)
+        df.to_csv(os.path.join(self.output, 'latent.csv'))
+
+
+    def encode_full(self, data, barcode, batch_size=64, skip_outliers=True):
         tf_x = to_dataset(to_sparse(data), shuffle=False, batch_size=batch_size)
 
         performance = []
@@ -254,12 +281,15 @@ class MetaVAE:
             performance.append(perf)
 
         performance = np.asarray(performance)
-        max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
+        if skip_outliers:
+            max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
+        else:
+            max_loss = max(performance)
 
         dfs = []
         for i, model in enumerate(self.models):
             if performance[i] > max_loss:
-                # skip outlier
+                # skip outlie
                 continue
             predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
             out = predmodel.predict(tf_x)

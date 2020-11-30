@@ -92,6 +92,12 @@ def main(args=None):
     parser.add_argument("-hidden_d_dropout", dest="hidden_d_dropout", type=float,
                         default=0.3,
                         help="Dropout applied after each decoder hidden layer. Default=0.3")
+    parser.add_argument("-feature_fraction", dest="feature_fraction", type=float, default=1.,
+                        help="Whether to use a random subset of features. feature_fraction determines the proportion of features to use. Default=1.")
+    parser.add_argument("-batches", dest="batches", type=str, default=None,
+                        help="Table in tsv format defining the cell batches. "
+                             "The first columns should represent the barcode "
+                             "while the remaining columns represent the batches as categorical labels.")
              
 
     args = parser.parse_args()
