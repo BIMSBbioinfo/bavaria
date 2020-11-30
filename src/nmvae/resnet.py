@@ -191,26 +191,29 @@ class MetaVAE:
             else:
                x_data_ts = x_data
 
-        tf_X = to_dataset(to_sparse(x_train), shuffle=shuffle, batch_size=batch_size)
+            
+            x_train, x_test = train_test_split(x_data_ts, test_size=validation_split,
+                                               random_state=42)
 
-        output_bias = np.asarray(x_train.sum(0)).flatten()
-        output_bias /= output_bias.sum()
-        output_bias = np.log(output_bias + 1e-8)
+            
+            tf_X = to_dataset(to_sparse(x_train), shuffle=shuffle, batch_size=batch_size)
+
+            output_bias = np.asarray(x_train.sum(0)).flatten()
+            output_bias /= output_bias.sum()
+            output_bias = np.log(output_bias + 1e-8)
         
-        for r in range(self.repeats):
-
             subpath = os.path.join(self.output, f'repeat_{r+1}')
             os.makedirs(subpath, exist_ok=True)
             if not os.path.exists(os.path.join(subpath, 'model')):
 
                 print(f'Run repetition {r+1}')
+                space['datadims'] = x_train.shape[1]
                 model = VAE.create(space, create_encoder, create_decoder)
 
                 # initialize the output bias based on the overall read coverage
                 # this slightly improves results
                 model.decoder.get_layer('extra_bias').set_weights([output_bias])
 
-                model.summary()
                 model.compile(optimizer=
                               keras.optimizers.Adam(
                                   learning_rate=0.001,
