@@ -103,6 +103,10 @@ def main(args=None):
                              "The first columns should represent the barcode "
                              "while the remaining columns represent the batches as categorical labels.")
              
+    parser.add_argument('-nhidden_b', dest='nhidden_b', type=int,
+                        default=32,
+                        help="Number of hidden neurons for batch predictor. "
+                             "Default: 32.")
 
     args = parser.parse_args()
     print(args)

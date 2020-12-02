@@ -78,9 +78,11 @@ def resnet_vae_params(args):
         ('inputdropout', args.inputdropout),
         ('hidden_e_dropout', args.hidden_e_dropout),
         ('hidden_d_dropout', args.hidden_d_dropout),
+        ('nhiddenbatcher', args.nhidden_b),
         ('latentdims', args.nlatent),
       ]
     )
+
     return params
 
 def create_repeat_encoder(params):
@@ -240,7 +242,7 @@ def create_batcher(params):
 
     latent_input = keras.Input(shape=(nsamples, latent_dim,), name='input_batcher')
 
-    x = layers.Dense(params['nhiddendecoder'], activation='relu')(latent_input)
+    x = layers.Dense(params['nhiddenbatcher'], activation='relu')(latent_input)
 
     targets = [layers.Dense(nl, activation='softmax', name=name)(x) \
                for nl,name in zip(params['nbatchcats'], params['batchnames'])]
