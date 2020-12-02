@@ -264,6 +264,12 @@ class VAE(keras.Model):
         losses['loss'] = total_loss
         return losses
 
+    def predict_step(self, data):
+        if isinstance(data, tuple):
+            data = data[0]
+        z = self.encoder(data)
+        pred = self.decoder([z, data])
+        return pred
 
 class BCVAE(keras.Model):
     def __init__(self, encoder, decoder, batcher, **kwargs):
@@ -328,7 +334,6 @@ class BCVAE(keras.Model):
         self.batcher.load_weights(f + '_batcher_' + s)
 
     def call(self, data):
-        print('got tuple of length', len(data))
         if isinstance(data, tuple):
             data, labels = data
         z = self.encoder(data)
@@ -398,5 +403,27 @@ class BCVAE(keras.Model):
 
         losses['loss'] = total_loss
         return losses
+
+
+    def predict_step(self, data):
+        data = data[0]
+        if isinstance(data, tuple):
+            data, labels = data
+        z = self.encoder(data)
+        pred = self.decoder([z, data, labels])
+        return pred
+        #batchpred = self.batcher(z)
+
+        #if not isinstance(batchpred, tuple):
+        #    batchpred = (batchpred,)
+        #batch_loss = []
+        #for i, (pred, labs) in enumerate(zip(batchpred, labels)):
+        #    batch_loss.append(self.cce(labs, tf.math.reduce_mean(pred, axis=1)))
+
+        #batch_loss = sum(batch_loss)
+        #total_loss = sum(self.encoder.losses) + sum(self.decoder.losses) - batch_loss
+
+        #losses['loss'] = total_loss
+        #return losses
 
 

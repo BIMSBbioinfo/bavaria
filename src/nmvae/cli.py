@@ -113,32 +113,32 @@ def main(args=None):
     batches = args.batches
 
     # load the dataset
-    cmat, barcode, regions = load_data(matrix, regions, barcodes)
+    adata = load_data(matrix, regions, barcodes)
 
     params = resnet_vae_params(args)
 
     if batches is not None:
         print('using batch correction')
-        batches = load_batch_labels(barcode, batches)
+        batches = load_batch_labels(barcodes, batches)
         params.update(resnet_vae_batch_params(batches))
 
-        print(params)
-        onehot_batches = one_hot_encode_batches(batches)
+        adata = one_hot_encode_batches(adata, batches)
+        #print(adata)
         metamodel = BatchMetaVAE(params,
                             args.nrepeat, args.output,
                             args.overwrite,
-                            args.feature_fraction)
+                            args.feature_fraction,
+                            params['batchnames'])
 
-        metamodel.fit(cmat, onehot_batches,
-                      epochs=args.epochs,
-                      batch_size=args.batch_size)
-        metamodel.encode(cmat, onehot_batches, barcode)
     else:
         metamodel = MetaVAE(params,
                             args.nrepeat, args.output,
                             args.overwrite,
                             args.feature_fraction)
 
-        metamodel.fit(cmat, epochs=args.epochs, batch_size=args.batch_size)
+    metamodel.fit(adata, epochs=args.epochs, batch_size=args.batch_size)
 
-        metamodel.encode(cmat, barcode)
+    adata = metamodel.encode(adata)
+    adata = metamodel.variable_regions(adata)
+    print(adata)
+    adata.write(os.path.join(args.output, "analysis.h5ad"))

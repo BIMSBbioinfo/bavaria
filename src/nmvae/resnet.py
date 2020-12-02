@@ -40,11 +40,11 @@ def resnet_vae_batch_params(df):
          ])
     return params
 
-def one_hot_encode_batches(df):
-    labels = []
+def one_hot_encode_batches(adata, df):
     for label in df.columns[1:].values.tolist():
-        labels.append(OneHotEncoder(sparse=False).fit_transform(df[label].values.reshape(-1,1)))
-    return labels
+        adata.obsm[label] = OneHotEncoder(sparse=False).fit_transform(df[label].values.reshape(-1,1))
+        adata.obs.loc[:,label] = df[label].values
+    return adata
 
 def load_data(data, regions, cells):
     cmat = CountMatrix.from_mtx(data, regions, cells)
@@ -55,13 +55,16 @@ def load_data(data, regions, cells):
     x_data = cm.tocsc()[:,tokeep>0].tocsr()
 
     rownames = cmat.cannot.barcode
+    
     colnames = cmat.regions.apply(lambda row: f'{row.chrom}_{row.start}_{row.end}',axis=1)
 
-    #adata = AnnData(x_data, obs=cmat.cannot.barcode,
-    #                var=colnames)
-
-    #print(adata)
-    return x_data, rownames, colnames
+    cmat.regions.loc[:,'name'] = colnames
+    cmat.regions.set_index('name', inplace=True)
+    adata = AnnData(x_data, 
+                    obs=pd.DataFrame(index=cmat.cannot.barcode),
+                    var=cmat.regions)
+    adata.obs_names_make_unique()
+    return adata
 
 
 def resnet_vae_params(args):
@@ -308,6 +311,8 @@ def create_batch_decoder(params):
         x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
         x = layers.Dropout(params['hidden_d_dropout'])(x)
 
+    target_inputs = keras.Input(shape=input_shape, name='targets')
+
     targets = layers.Reshape((1, params['datadims']))(target_inputs)
 
     # multinomial part
@@ -343,12 +348,13 @@ class MetaVAE:
         self.space = params
         self.feature_fraction = feature_fraction
         
-    def fit(self, x_data, labels=None,
+    def fit(self, adata,
             shuffle=True, batch_size=64,
             epochs=1, validation_split=.15
            ):
 
         space = self.space
+        x_data = adata.X
         x_data_t = x_data.T.tocsr()
        
         for r in range(self.repeats):
@@ -402,14 +408,14 @@ class MetaVAE:
                                   amsgrad=True)
                              )
                 self.models.append(model)
-            model.summary()
+            #model.summary()
 
     def determine_outliers_threshold(self, data, batch_size=64):
         tf_x_data = to_dataset(to_sparse(data), shuffle=False)
         performance = []
         for _, model in enumerate(models):
-            perf = model.evaluate(tf_x_data)
-            performance.append(perf)
+            perf = model.evaluate(tf_x_data, return_dict=True)
+            performance.append(perf['loss'])
 
         performance = np.asarray(performance)
         max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
@@ -421,9 +427,10 @@ class MetaVAE:
                 model = VAE.load(os.path.join(self.output, f'repeat_{r+1}', 'model.h5'))
                 self.models.append(model)
 
-    def encode_subset(self, data, barcode, batch_size=64):
+    def encode_subset(self, adata, batch_size=64):
 
         dfs = []
+        data = adata.X
         x_data_t = data.T.tocsr()
         for i, model in enumerate(self.models):
             if self.feature_fraction < 1.:
@@ -436,20 +443,23 @@ class MetaVAE:
 
             predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
             out = predmodel.predict(tf_x)
-            df = pd.DataFrame(out, index=barcode, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
+            df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
             dfs.append(df)
         df = pd.concat(dfs, axis=1)
+        adata.obsm['nmvae-ensemble'] = df.values
         df.to_csv(os.path.join(self.output, 'latent.csv'))
+        return adata
 
 
-    def encode_full(self, data, barcode, batch_size=64, skip_outliers=True):
+    def encode_full(self, adata, batch_size=64, skip_outliers=True):
+        data = adata.X
         tf_x = to_dataset(to_sparse(data), shuffle=False, batch_size=batch_size)
 
         performance = []
         for model in self.models:
-            perf = model.evaluate(tf_x)
-            performance.append(perf)
+            perf = model.evaluate(tf_x, return_dict=True)
+            performance.append(perf['loss'])
 
         performance = np.asarray(performance)
         if skip_outliers:
@@ -464,26 +474,98 @@ class MetaVAE:
                 continue
             predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
             out = predmodel.predict(tf_x)
-            df = pd.DataFrame(out, index=barcode, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
+            df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
+            adata.obsm[f'nmvae-run_{i+1}'] = out
             dfs.append(df)
         df = pd.concat(dfs, axis=1)
+        adata.obsm['nmvae-ensemble'] = df.values
         df.to_csv(os.path.join(self.output, 'latent.csv'))
+        return adata
 
-    def encode(self, data, barcode, batch_size=64):
+    def encode(self, adata, batch_size=64):
         if self.feature_fraction < 1.:
-            self.encode_subset(data, barcode, batch_size)
+            return self.encode_subset(adata, batch_size)
         else:
-            self.encode_full(data, barcode, batch_size)
+            return self.encode_full(adata, batch_size)
+
+    def variable_regions(self, adata, batch_size=64):
+
+        data = adata.X
+
+        tf_x = to_dataset(to_sparse(data),
+                          shuffle=False,
+                          batch_size=batch_size)
+
+        df = pd.DataFrame(columns=['chr', 'start', 'end', 'max','min', 'mean', 'var'])
+
+        psum = None
+        pmin = None
+        pmax = None
+        psq = None
+        n = 0
+        for xinput in tf_x:
+            prediction = []
+            for model in self.models:
+                prediction.append(model.predict(xinput))
+
+            # r x b x s x f
+            p = np.asarray(prediction)
+            p = p/p.sum(-1, keepdims=True)
+
+            n += np.prod(p.shape[:-1])
+
+            if psum is None:
+                psum = p.sum((0,1,2))
+                pmin = p.min((0,1,2))
+                pmax = p.max((0,1,2))
+                psq = np.square(p).sum((0,1,2))
+            else:
+                psum += p.sum((0,1,2))
+                pmin = np.minimum(pmin, p.min((0,1,2)))
+                pmax = np.maximum(pmax, p.max((0,1,2)))
+                psq += np.square(p).sum((0,1,2))
+                
+        pmean = psum / n
+        var = psq / n - np.square(pmean)
+        
+        #df = regions.copy()
+        #df.loc[:,"mean"] = pmean
+        #df.loc[:,"var"] = psq / n - np.square(pmean)
+        #df.loc[:,"min"] = pmin
+        #df.loc[:,"max"] = pmax
+
+        #df.to_csv(os.path.join(self.output, 'variable_regions.tsv'), sep="\t", index=False)
+        adata.var.loc[:,"mean"] = pmean
+        adata.var.loc[:,"var"] = var
+        adata.var.loc[:,"sd"] = np.sqrt(var)
+        adata.var.loc[:,"min"] = pmin
+        adata.var.loc[:,"max"] = pmax
+        return adata
 
 class BatchMetaVAE(MetaVAE):
 
-    def fit(self, x_data, labels=None,
+    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
+        self.repeats = repeats
+        self.output = output
+        self.models = []
+        self.joined_model = None
+        self.overwrite = overwrite
+        if os.path.exists(output) and overwrite:
+            shutil.rmtree(output)
+        
+        os.makedirs(output, exist_ok=True)
+        self.space = params
+        self.feature_fraction = feature_fraction
+        self.batchnames = batchnames
+        
+    def fit(self, adata, 
             shuffle=True, batch_size=64,
             epochs=1, validation_split=.15
            ):
 
         space = self.space
+        x_data = adata.X
         x_data_t = x_data.T.tocsr()
        
         for r in range(self.repeats):
@@ -502,8 +584,8 @@ class BatchMetaVAE(MetaVAE):
 
             labels_train=[]
             labels_test=[]
-            for label  in labels:
-                label_train, label_test = train_test_split(label,
+            for label  in self.batchnames:
+                label_train, label_test = train_test_split(adata.obsm[label],
                                                    test_size=validation_split,
                                                    random_state=42)
                 labels_train.append(label_train)
@@ -512,10 +594,6 @@ class BatchMetaVAE(MetaVAE):
             tf_X = to_dataset(to_sparse(x_train), labels_train,
                               shuffle=shuffle, batch_size=batch_size)
             tf_X_test = to_dataset(to_sparse(x_test), labels_test, shuffle=False)
-            #else:
-            #    tf_X = to_dataset(to_sparse(x_train),
-            #                      shuffle=shuffle, batch_size=batch_size)
-            #    tf_X_test = to_dataset(to_sparse(x_test), shuffle=False)
 
             output_bias = np.asarray(x_train.sum(0)).flatten()
             output_bias /= output_bias.sum()
@@ -553,14 +631,13 @@ class BatchMetaVAE(MetaVAE):
                                   amsgrad=True)
                              )
                 self.models.append(model)
-            model.summary()
+            #model.summary()
 
 
-    def encode_full(self, data, labels, barcode, batch_size=64, skip_outliers=True):
+    def encode_full(self, adata, batch_size=64, skip_outliers=True):
 
-        #eval_labels=[]
-        #for label  in labels:
-        #    eval_labels.append(label)
+        data = adata.X
+        labels = [adata.obsm[label] for label in self.batchnames]
         tf_x = to_dataset(to_sparse(data), labels, shuffle=False, batch_size=batch_size)
 
         performance = []
@@ -582,19 +659,23 @@ class BatchMetaVAE(MetaVAE):
                 continue
             predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
             out = predmodel.predict(tf_x)
-            df = pd.DataFrame(out, index=barcode, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
+            df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
+            adata.obsm[f'nmvae-run_{i+1}'] = out
             dfs.append(df)
         df = pd.concat(dfs, axis=1)
+        adata.obsm['nmvae-ensemble'] = df.values
         df.to_csv(os.path.join(self.output, 'latent.csv'))
+        return adata
 
-    def encode(self, data, labels, barcode, batch_size=64):
-        if self.feature_fraction < 1.:
-            self.encode_subset(data, labels, barcode, batch_size)
-        else:
-            self.encode_full(data, labels, barcode, batch_size)
+    def variable_regions(self, adata, batch_size=64):
 
-    def variable_regions(self, data, labels, regions, batch_size=64):
+        data = adata.X
+        # define dummy batch labels such that all cells have a common batch
+        labels = [np.zeros_like(adata.obsm[label]) for label in self.batchnames]
+        for i,_ in enumerate(labels):
+            labels[i][:,0]=1
+        #labels = [adata.obsm[label]) for label in self.batchnames]
 
         tf_x = to_dataset(to_sparse(data), labels,
                           shuffle=False,
@@ -610,10 +691,11 @@ class BatchMetaVAE(MetaVAE):
         for xinput in tf_x:
             prediction = []
             for model in self.models:
-                prediction.append(model.predict(tf_x))
+                prediction.append(model.predict(xinput))
 
             # r x b x s x f
             p = np.asarray(prediction)
+            p = p/p.sum(-1, keepdims=True)
 
             n += np.prod(p.shape[:-1])
 
@@ -629,11 +711,19 @@ class BatchMetaVAE(MetaVAE):
                 psq += np.square(p).sum((0,1,2))
                 
         pmean = psum / n
-        df = regions.copy()
-        df.loc[:,"mean"] = pmean
-        df.loc[:,"var"] = psq / n - np.square(pmean)
-        df.loc[:,"min"] = pmin
-        df.loc[:,"max"] = pmax
+        var = psq / n - np.square(pmean)
+        
+        #df = regions.copy()
+        #df.loc[:,"mean"] = pmean
+        #df.loc[:,"var"] = psq / n - np.square(pmean)
+        #df.loc[:,"min"] = pmin
+        #df.loc[:,"max"] = pmax
 
-        df.to_csv(os.path.join(self.output, 'variable_regions.tsv'), sep="\t", index=False)
+        #df.to_csv(os.path.join(self.output, 'variable_regions.tsv'), sep="\t", index=False)
+        adata.var.loc[:,"mean"] = pmean
+        adata.var.loc[:,"var"] = var
+        adata.var.loc[:,"sd"] = np.sqrt(var)
+        adata.var.loc[:,"min"] = pmin
+        adata.var.loc[:,"max"] = pmax
+        return adata
 
