@@ -100,6 +100,30 @@ class KLlossLayer(layers.Layer):
         self.add_loss(kl_loss)
         return z_mean, z_log_var
 
+class BatchLoss(layers.Layer):
+    def __init__(self, *args, **kwargs):
+        super(BatchLoss, self).__init__(*args, **kwargs)
+        self.catmet = tf.keras.metrics.CategoricalAccuracy(name='bacc')
+        self.binmet = tf.keras.metrics.AUC(name='bauc')
+
+    def call(self, inputs):
+        if len(inputs) < 2:
+            return inputs
+        pred_batch, true_batch = inputs
+        tf.debugging.assert_non_negative(pred_batch)
+        tf.debugging.assert_non_negative(true_batch)
+        loss = 0.0
+        for tb, pb in zip(true_batch, pred_batch):
+            loss += tf.reduce_sum(-tf.math.xlogy(tb, pb+1e-9))
+            self.add_metric(self.catmet(tb,pb))
+            self.add_metric(self.binmet(tb[:,0,0],pb[:,-1,0]))
+        tf.debugging.check_numerics(loss, "targets * log(p)")
+        
+        self.add_loss(loss)
+        return pred_batch
+
+    def compute_output_shape(self, input_shape):
+        return input_shape[0]
 
 class ScalarBiasLayer(keras.layers.Layer):
     def build(self, input_shape):
