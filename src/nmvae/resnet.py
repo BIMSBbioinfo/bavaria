@@ -12,11 +12,14 @@ from scipy.stats import iqr
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from anndata import AnnData
+from anndata import read_h5ad
 from nmvae.utils import to_dataset, to_sparse
-from nmvae.utils import VAE, BCVAE
+from nmvae.utils import VAE, BCVAE,BCVAE2,BCVAE3
 from nmvae.utils import ClipLayer
 from nmvae.utils import KLlossLayer
 from nmvae.utils import Sampling
+from nmvae.utils import ExpandDims
+from nmvae.utils import BatchLoss, BatchKLLoss
 from nmvae.utils import ScalarBiasLayer
 from nmvae.utils import AddBiasLayer
 from nmvae.utils import NegativeMultinomialEndpoint
@@ -24,29 +27,38 @@ from nmvae.countmatrix import CountMatrix
 
 
 
-def load_batch_labels(barcodes, batches):
+def load_batch_labels(adata, batches):
     if batches is None:
-        df = pd.DataFrame({'barcode':barcodes, 'dummybatch':['dummy']*len(barcodes)})
-    else:
-        df = pd.read_csv(batches, sep='\t')
+        df = pd.DataFrame({'dummybatch':['dummy']*len(barcodes)},
+                           index=adata.obs.index)
+    elif isinstance(batches, str) and os.path.exists(batches):
+        df = pd.read_csv(batches, sep='\t', index_col=0)
     return df
     
-def resnet_vae_batch_params(df):
-    columns = df.columns[1:].values.tolist()
-    ncats = [df[c].unique().shape[0] for c in columns]
+def resnet_vae_batch_params(adata, batchnames):
+    columns = batchnames
+    ncats = [adata.obs[c].unique().shape[0] for c in columns]
+    nullprobs = [adata.obsm[c].mean(0) for c in columns]
     params = OrderedDict([
        ('batchnames', columns),
        ('nbatchcats', ncats),
+       ('batchnullprobs', nullprobs),
          ])
+    print(params)
     return params
 
-def one_hot_encode_batches(adata, df):
-    for label in df.columns[1:].values.tolist():
-        adata.obsm[label] = OneHotEncoder(sparse=False).fit_transform(df[label].values.reshape(-1,1))
-        adata.obs.loc[:,label] = df[label].values
+def one_hot_encode_batches(adata, batchnames):
+    for label in batchnames:
+        if label not in adata.obsm:
+            oh= OneHotEncoder(sparse=False).fit_transform(adata.obs[label].values.astype(str).reshape(-1,1).tolist())
+            adata.obsm[label] = oh
+        if label not in adata.obs.columns:
+            adata.obs.loc[:,label] = adata.obs[label].values
     return adata
 
 def load_data(data, regions, cells):
+    if data.endswith('.h5ad'):
+        return read_h5ad(data)
     cmat = CountMatrix.from_mtx(data, regions, cells)
     cmat = cmat.filter(binarize=True)
     cm=cmat.cmat.T.tocsr().astype('float32')
@@ -85,41 +97,6 @@ def resnet_vae_params(args):
 
     return params
 
-def create_repeat_encoder(params):
-    input_shape = (params['datadims'],)
-    latent_dim = params['latentdims']
-
-    encoder_inputs = keras.Input(shape=input_shape,
-                                 name='input_data')
-
-    x = encoder_inputs
-    x = RepeatVector(params['nrepeat'])(x)
-
-    xinit = layers.Dropout(params['inputdropout'])(x)
-
-    nhidden_e = params['nhidden_e']
-    xinit = RepeatDense1D(nhidden_e)(xinit)
-    xinit = layers.Activation(activation='relu')(xinit)
-    for _ in range(params['nlayers_e']):
-        x = RepeatDense1D(nhidden_e)(xinit)
-        x = layers.Activation(activation='relu')(x)
-        x = layers.Dropout(params['hidden_e_dropout'])(x)
-        x = RepeatDense(nhidden_e)(x)
-        x = layers.Add()([x, xinit])
-        xinit = layers.Activation(activation='relu')(x)
-
-    x = xinit
-    z_mean = RepeatDense1D(latent_dim, name="z_mean")(x)
-    z_log_var = RepeatDense1D(latent_dim, name="z_log_var")(x)
-    z_log_var = ClipLayer(-10., 10.)(z_log_var)
-
-    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
-
-    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
-
-    encoder = keras.Model(encoder_inputs, z, name="encoder")
-
-    return encoder
 
 
 def create_encoder(params):
@@ -156,60 +133,27 @@ def create_encoder(params):
     return encoder
 
 
-def create_encoder_nonvariational(params):
-    input_shape = (params['datadims'],)
-    latent_dim = params['latentdims']
-
-    encoder_inputs = keras.Input(shape=input_shape,
-                                 name='input_data')
-
-    x = encoder_inputs
-
-    xinit = layers.Dropout(params['inputdropout'])(x)
-
-    nhidden_e = params['nhidden_e']
-    xinit = layers.Dense(nhidden_e, activation="relu")(xinit)
-    for _ in range(params['nlayers_e']):
-        x = layers.Dense(nhidden_e, activation="relu")(xinit)
-        x = layers.Dropout(params['hidden_e_dropout'])(x)
-        x = layers.Dense(nhidden_e)(x)
-        x = layers.Add()([x, xinit])
-        xinit = layers.Activation(activation='relu')(x)
-
-    x = xinit
-    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
-    #z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
-    #z_log_var = ClipLayer(-10., 10.)(z_log_var)
-
-    #z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
-
-    #z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
-    z = layers.RepeatVector(params['nsamples'], name='deterministic_latent')(z_mean)
-
-    encoder = keras.Model(encoder_inputs, z, name="encoder")
-
-    return encoder
-
-
 def create_batch_encoder(params):
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
-    batch_dim = params['batchdim']
 
     encoder_inputs = keras.Input(shape=input_shape,
                                  name='input_data')
-
-    batch_inputs = keras.Input(shape=(batch_dim,), name='batch_input')
-
-    batch_layer = layers.Reshape((1, batch_dim))(batch_inputs)
-
+ 
     x = encoder_inputs
     xinit = layers.Dropout(params['inputdropout'])(x)
+
+    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    batch_layer = batch_inputs
+
+    if len(batch_layer)>1:
+        batch_layer = layers.Concatenate()(batch_layer)
+    else:
+        batch_layer = batch_layer[0]
+
+    xinit = layers.Concatenate()([xinit, batch_layer])
     nhidden_e = params['nhidden_e']
     xinit = layers.Dense(nhidden_e, activation="relu")(xinit)
-
-    xbatchhidden = layers.Dense(params['nhidden_b'],
-                                activation='relu')(batch_layer)
 
     for _ in range(params['nlayers_e']):
         x = layers.Dense(nhidden_e, activation="relu")(xinit)
@@ -219,8 +163,6 @@ def create_batch_encoder(params):
         xinit = layers.Activation(activation='relu')(x)
 
     x = xinit
-
-    x = layers.Concatenate()([x, xbatchhidden])
 
     z_mean = layers.Dense(latent_dim, name="z_mean")(x)
     z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
@@ -230,10 +172,74 @@ def create_batch_encoder(params):
 
     z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
 
-    encoder = keras.Model(encoder_inputs, z, name="encoder")
+    encoder = keras.Model([encoder_inputs, batch_inputs], z, name="encoder")
 
     return encoder
 
+
+def create_batch_encoder_gan(params):
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+
+    encoder_inputs = keras.Input(shape=input_shape,
+                                 name='input_data')
+
+    x = encoder_inputs
+    xinit = layers.Dropout(params['inputdropout'])(x)
+
+    #batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    #batch_layer = batch_inputs
+
+    #if len(batch_layer)>1:
+    #    batch_layer = layers.Concatenate()(batch_layer)
+    #else:
+    #    batch_layer = batch_layer[0]
+
+    #xinit = layers.Concatenate()([xinit, batch_layer])
+    batches = []
+    nhidden_e = params['nhidden_e']
+    xinit = layers.Dense(nhidden_e)(xinit)
+    batches.append(create_batch_net(xinit, params, '00'))
+    xinit = layers.Activation(activation='relu')(xinit)
+    
+
+    for i in range(params['nlayers_e']):
+        x = layers.Dense(nhidden_e, activation="relu")(xinit)
+        x = layers.Dropout(params['hidden_e_dropout'])(x)
+        x = layers.Dense(nhidden_e)(x)
+        x = layers.Add()([x, xinit])
+        batches.append(create_batch_net(x, params, f'1{i}'))
+        xinit = layers.Activation(activation='relu')(x)
+
+    x = xinit
+
+    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
+    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
+    z_log_var = ClipLayer(-10., 10.)(z_log_var)
+
+    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
+
+    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
+
+    batches.append(create_batch_net(z, params, f'20'))
+
+    pred_batches = combine_batch_net(batches)
+    #pred_batches = combine_batch_net(batches[-3:])
+    #pred_batches = combine_batch_net(batches[-5:])
+    #pred_batches = batches[-1]
+
+    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    true_batch_layer = [ExpandDims()(l) for l in batch_inputs]
+
+    #batch_loss = BatchLoss(#batch_probs=params['batchnullprobs'],
+    #                       name='batch_loss')([pred_batches, true_batch_layer])
+    batch_loss = BatchLoss(#batch_probs=params['batchnullprobs'],
+                           name='batch_loss')([pred_batches, true_batch_layer])
+
+    encoder = keras.Model([encoder_inputs, batch_inputs], [z, batch_loss], name="encoder")
+
+
+    return encoder
 
 def create_batcher(params):
 
@@ -242,14 +248,36 @@ def create_batcher(params):
 
     latent_input = keras.Input(shape=(nsamples, latent_dim,), name='input_batcher')
 
-    x = layers.Dense(params['nhiddenbatcher'], activation='relu')(latent_input)
+    #x = layers.Dense(params['nhiddenbatcher'], activation='relu')(latent_input)
 
-    targets = [layers.Dense(nl, activation='softmax', name=name)(x) \
-               for nl,name in zip(params['nbatchcats'], params['batchnames'])]
+    #targets = [layers.Dense(nl, activation='softmax', name=name)(x) \
+    #           for nl,name in zip(params['nbatchcats'], params['batchnames'])]
+    targets = create_batch_net(latent_input, params, '')
     model = keras.Model(latent_input, targets, name='batcher')
 
     return model
 
+def create_batch_net(inlayer, params, name):
+    #if 'nlayersbatcher' not in params:
+    #    params['nlayersbatcher'] = 2
+    x = layers.BatchNormalization(name='batchcorrect_batch_norm_1_'+name)(inlayer)
+    #x = inlayer
+    for i in range(params['nlayersbatcher']):
+       x = layers.Dense(params['nhiddenbatcher'], activation='relu', name=f'batchcorrect_{name}_hidden_{i}')(x)
+       x = layers.BatchNormalization(name=f'batchcorrect_batch_norm_2_{name}_{i}')(x)
+    #x = layers.Dense(params['nhiddenbatcher'], activation='relu', name='batchcorrect_'+ name + '_hidden2')(x)
+    #x = layers.BatchNormalization(name='batchcorrect_batch_norm_2_'+name)(x)
+    if len(x.shape.as_list()) <= 2:
+        x = ExpandDims()(x)
+    targets = [layers.Dense(nl, activation='softmax', name='batchcorrect_'+name + '_out_' + bname)(x) \
+               for nl,bname in zip(params['nbatchcats'], params['batchnames'])]
+    return targets
+
+def combine_batch_net(batches):
+    new_output = []
+    for bo,_ in enumerate(batches[0]):
+        new_output.append(layers.Concatenate(axis=1, name=f'combine_batches_{bo}')([batch[bo] for batch in batches]))
+    return new_output
 
 def create_decoder(params):
 
@@ -447,6 +475,7 @@ class MetaVAE:
             out = predmodel.predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
+            adata.obsm[f'nmvae-run_{i+1}'] = out
             dfs.append(df)
         df = pd.concat(dfs, axis=1)
         adata.obsm['nmvae-ensemble'] = df.values
