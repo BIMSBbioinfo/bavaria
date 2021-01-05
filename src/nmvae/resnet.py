@@ -188,15 +188,6 @@ def create_batch_encoder_gan(params):
     x = encoder_inputs
     xinit = layers.Dropout(params['inputdropout'])(x)
 
-    #batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
-    #batch_layer = batch_inputs
-
-    #if len(batch_layer)>1:
-    #    batch_layer = layers.Concatenate()(batch_layer)
-    #else:
-    #    batch_layer = batch_layer[0]
-
-    #xinit = layers.Concatenate()([xinit, batch_layer])
     batches = []
     nhidden_e = params['nhidden_e']
     xinit = layers.Dense(nhidden_e)(xinit)
@@ -225,17 +216,11 @@ def create_batch_encoder_gan(params):
     batches.append(create_batch_net(z, params, f'20'))
 
     pred_batches = combine_batch_net(batches)
-    #pred_batches = combine_batch_net(batches[-3:])
-    #pred_batches = combine_batch_net(batches[-5:])
-    #pred_batches = batches[-1]
 
     batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
     true_batch_layer = [ExpandDims()(l) for l in batch_inputs]
 
-    #batch_loss = BatchLoss(#batch_probs=params['batchnullprobs'],
-    #                       name='batch_loss')([pred_batches, true_batch_layer])
-    batch_loss = BatchLoss(#batch_probs=params['batchnullprobs'],
-                           name='batch_loss')([pred_batches, true_batch_layer])
+    batch_loss = BatchLoss(name='batch_loss')([pred_batches, true_batch_layer])
 
     encoder = keras.Model([encoder_inputs, batch_inputs], [z, batch_loss], name="encoder")
 
@@ -249,25 +234,16 @@ def create_batcher(params):
 
     latent_input = keras.Input(shape=(nsamples, latent_dim,), name='input_batcher')
 
-    #x = layers.Dense(params['nhiddenbatcher'], activation='relu')(latent_input)
-
-    #targets = [layers.Dense(nl, activation='softmax', name=name)(x) \
-    #           for nl,name in zip(params['nbatchcats'], params['batchnames'])]
     targets = create_batch_net(latent_input, params, '')
     model = keras.Model(latent_input, targets, name='batcher')
 
     return model
 
 def create_batch_net(inlayer, params, name):
-    #if 'nlayersbatcher' not in params:
-    #    params['nlayersbatcher'] = 2
     x = layers.BatchNormalization(name='batchcorrect_batch_norm_1_'+name)(inlayer)
-    #x = inlayer
     for i in range(params['nlayersbatcher']):
        x = layers.Dense(params['nhiddenbatcher'], activation='relu', name=f'batchcorrect_{name}_hidden_{i}')(x)
        x = layers.BatchNormalization(name=f'batchcorrect_batch_norm_2_{name}_{i}')(x)
-    #x = layers.Dense(params['nhiddenbatcher'], activation='relu', name='batchcorrect_'+ name + '_hidden2')(x)
-    #x = layers.BatchNormalization(name='batchcorrect_batch_norm_2_'+name)(x)
     if len(x.shape.as_list()) <= 2:
         x = ExpandDims()(x)
     targets = [layers.Dense(nl, activation='softmax', name='batchcorrect_'+name + '_out_' + bname)(x) \
@@ -325,7 +301,6 @@ def create_batch_decoder(params):
     batch_dim = params['batchnames']
 
     latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
-
     
     batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
     batch_layer = batch_inputs
