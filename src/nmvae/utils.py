@@ -43,6 +43,19 @@ def to_dataset(x, y=None, batch_size=64, shuffle=True):
     ds = ds.prefetch(8)
     return ds
 
+class ExpandDims(layers.Layer):
+    def __init__(self, axis=1, *args, **kwargs):
+        super(ExpandDims, self).__init__(*args, **kwargs)
+        self.axis = axis
+    def call(self, inputs):
+        o = tf.expand_dims(inputs, axis=self.axis)
+        return tf.expand_dims(inputs, axis=self.axis)
+    def get_config(self):
+        config = {'axis':self.axis}
+        base_config = super(ExpandDims, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+        
+
 
 class ClipLayer(layers.Layer):
     def __init__(self, min_value, max_value, *args, **kwargs):
