@@ -91,6 +91,7 @@ def resnet_vae_params(args):
         ('hidden_e_dropout', args.hidden_e_dropout),
         ('hidden_d_dropout', args.hidden_d_dropout),
         ('nhiddenbatcher', args.nhidden_b),
+        ('nlayersbatcher', 2),
         ('latentdims', args.nlatent),
       ]
     )
