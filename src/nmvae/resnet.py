@@ -14,12 +14,14 @@ from sklearn.preprocessing import OneHotEncoder
 from anndata import AnnData
 from anndata import read_h5ad
 from nmvae.utils import to_dataset, to_sparse
-from nmvae.utils import VAE, BCVAE,BCVAE2,BCVAE3
+from nmvae.utils import VAE, BCVAE
+from nmvae.utils import BCVAE2
+from nmvae.utils import BCVAE3 as BAVAE
 from nmvae.utils import ClipLayer
 from nmvae.utils import KLlossLayer
 from nmvae.utils import Sampling
 from nmvae.utils import ExpandDims
-from nmvae.utils import BatchLoss, BatchKLLoss
+from nmvae.utils import BatchLoss
 from nmvae.utils import ScalarBiasLayer
 from nmvae.utils import AddBiasLayer
 from nmvae.utils import NegativeMultinomialEndpoint
@@ -44,7 +46,6 @@ def resnet_vae_batch_params(adata, batchnames):
        ('nbatchcats', ncats),
        ('batchnullprobs', nullprobs),
          ])
-    print(params)
     return params
 
 def one_hot_encode_batches(adata, batchnames):
