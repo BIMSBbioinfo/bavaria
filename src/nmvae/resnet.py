@@ -597,8 +597,6 @@ class BatchAdversarialEnsembleVAE(EnsembleVAE):
             if performance[i] > max_loss:
                 # skip outlie
                 continue
-            #predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
-            #out = predmodel.predict(tf_x)
             out = model.encoder_predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
@@ -608,28 +606,6 @@ class BatchAdversarialEnsembleVAE(EnsembleVAE):
         adata.obsm['nmvae-ensemble'] = df.values
         df.to_csv(os.path.join(self.output, 'latent.csv'))
         return adata
-
-    #def encode_subset(self, adata, batch_size=64):
-
-    #    dfs = []
-    #    data = adata.X
-    #    x_data_t = data.T.tocsr()
-    #    for i, model in enumerate(self.models):
-    #        x_subdata = self._get_subfeatureset(x_data, x_data_t, r*10)
-    #        x_subdata, labels = self._get_predict_data(x_subdata, adata)
-
-    #        tf_x = to_dataset(to_sparse(x_subdata), labels, shuffle=False, batch_size=batch_size)
-
-    #        predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
-    #        out = predmodel.predict(tf_x)
-    #        df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
-    #        df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
-    #        adata.obsm[f'nmvae-run_{i+1}'] = out
-    #        dfs.append(df)
-    #    df = pd.concat(dfs, axis=1)
-    #    adata.obsm['nmvae-ensemble'] = df.values
-    #    df.to_csv(os.path.join(self.output, 'latent.csv'))
-    #    return adata
 
 
 class BatchConditionalEnsembleVAE(EnsembleVAE):
@@ -696,24 +672,3 @@ class BatchConditionalEnsembleVAE(EnsembleVAE):
         df.to_csv(os.path.join(self.output, 'latent.csv'))
         return adata
 
-    #def encode_subset(self, adata, batch_size=64):
-
-    #    dfs = []
-    #    data = adata.X
-    #    x_data_t = data.T.tocsr()
-    #    for i, model in enumerate(self.models):
-    #        x_subdata = self._get_subfeatureset(x_data, x_data_t, i*10)
-    #        x_subdata, labels = self._get_predict_data(x_subdata, adata)
-
-    #        tf_x = to_dataset(to_sparse(x_subdata), labels, shuffle=False, batch_size=batch_size)
-
-    #        predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
-    #        out = predmodel.predict(tf_x)
-    #        df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
-    #        df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
-    #        adata.obsm[f'nmvae-run_{i+1}'] = out
-    #        dfs.append(df)
-    #    df = pd.concat(dfs, axis=1)
-    #    adata.obsm['nmvae-ensemble'] = df.values
-    #    df.to_csv(os.path.join(self.output, 'latent.csv'))
-    #    return adata
