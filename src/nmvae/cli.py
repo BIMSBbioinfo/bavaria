@@ -22,14 +22,17 @@ import tensorflow as tf
 import keras
 from nmvae import __version__
 from nmvae import VAE
-from nmvae.resnet import MetaVAE
-from nmvae.resnet import BatchMetaVAE
+from nmvae.resnet import EnsembleVAE
+#from nmvae.resnet import BatchEnsembleVAE
+from nmvae.resnet import BatchConditionalEnsembleVAE
+from nmvae.resnet import BatchAdversarialEnsembleVAE
 from nmvae.resnet import load_data
 from nmvae.resnet import load_batch_labels
 from nmvae.resnet import resnet_vae_params
 from nmvae.resnet import resnet_vae_batch_params
 from nmvae.resnet import one_hot_encode_batches
-#from scregseg.countmatrix import CountMatrix
+from nmvae.utils import get_variable_regions
+import scanpy as sc
 import logging
 
 
@@ -39,12 +42,13 @@ def main(args=None):
                                      description=f'Negative multinomial variational auto-encoders - v{__version__}')
 
     parser.add_argument('-data', dest='data', type=str,
-                        help="Matrix location. Matrix must be in mtx format", required=True)
+                        help="Data location. Matrix must be in mtx format or anndata .h5ad", required=True)
     parser.add_argument('-regions', dest='regions', type=str,
-                        help="Regions location in bed format.", required=True)
+                        help="Regions location in bed format. Required if matrix is in mtx format.")
     parser.add_argument('-barcodes', dest='barcodes', type=str,
-                        help="Barcode file in tsv format (with header). First column denotes the barcode.",
-                        required=True)
+                        help="Barcode file in tsv format (with header). First column denotes the barcode. "
+                             "Required if matrix is in mtx format.",
+                        )
 
     parser.add_argument('-output', dest='output', type=str,
                         help="Output directory", required=True)
@@ -103,6 +107,12 @@ def main(args=None):
                              "The first columns should represent the barcode "
                              "while the remaining columns represent the batches as categorical labels.")
              
+    parser.add_argument("-batchnames", dest="batchnames", type=str, nargs='+', default=[],
+                        help="Batch names in the anndata dataset. ")
+    parser.add_argument("-modelname", dest="modelname", type=str, default='bavaria', choices=['bavaria', 'bcvae'],
+                        help="Model name for batch correction. Default: bavaria")
+
+             
     parser.add_argument('-nhidden_b', dest='nhidden_b', type=int,
                         default=32,
                         help="Number of hidden neurons for batch predictor. "
@@ -115,27 +125,39 @@ def main(args=None):
     regions = args.regions
     barcodes = args.barcodes
     batches = args.batches
-
+    
+    batchnames=args.batchnames
     # load the dataset
     adata = load_data(matrix, regions, barcodes)
+    print(adata)
+
+    if batches is not None:
+        batches = load_batch_labels(adata, batches)
+        adata.obs = pd.concat([adata.obs, batches], axis=1)
+        batchnames = batches.columns
 
     params = resnet_vae_params(args)
 
-    if batches is not None:
-        print('using batch correction')
-        batches = load_batch_labels(barcodes, batches)
-        params.update(resnet_vae_batch_params(batches))
+    if len(batchnames)>0:
+        print('using batch correction from adata')
+        adata = one_hot_encode_batches(adata, batchnames)
+        params.update(resnet_vae_batch_params(adata, batchnames))
 
-        adata = one_hot_encode_batches(adata, batches)
-        #print(adata)
-        metamodel = BatchMetaVAE(params,
-                            args.nrepeat, args.output,
-                            args.overwrite,
-                            args.feature_fraction,
-                            params['batchnames'])
+        if args.modelname == 'bavaria':
+            metamodel = BatchAdversarialEnsembleVAE(params,
+                                args.nrepeat, args.output,
+                                args.overwrite,
+                                args.feature_fraction,
+                                params['batchnames'])
+        else:
+            metamodel = BatchConditionalEnsembleVAE(params,
+                                args.nrepeat, args.output,
+                                args.overwrite,
+                                args.feature_fraction,
+                                params['batchnames'])
 
     else:
-        metamodel = MetaVAE(params,
+        metamodel = EnsembleVAE(params,
                             args.nrepeat, args.output,
                             args.overwrite,
                             args.feature_fraction)
@@ -143,6 +165,15 @@ def main(args=None):
     metamodel.fit(adata, epochs=args.epochs, batch_size=args.batch_size)
 
     adata = metamodel.encode(adata)
-    adata = metamodel.variable_regions(adata)
-    print(adata)
+
+    sc.pp.neighbors(adata, n_neighbors=15, use_rep="nmvae-ensemble")
+    sc.tl.louvain(adata)
+    sc.tl.umap(adata)
+
+    if 'batchnames' in params:
+        adata = get_variable_regions(adata, batches=params['batchnames'])
+    else:
+        adata = get_variable_regions(adata, batches=None)
     adata.write(os.path.join(args.output, "analysis.h5ad"))
+    print(adata)
+    print('saved to ' + os.path.join(args.output, "analysis.h5ad"))
