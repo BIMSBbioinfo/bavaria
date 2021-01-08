@@ -657,7 +657,6 @@ class BCVAE3(keras.Model):
         with tf.GradientTape(persistent=True) as tape:
             z, b = self.encoder(data)
             kl_loss, batch_loss = self.encoder.losses
-            print(self.encoder.losses)
             losses['kl_loss'] = kl_loss
             losses['bloss'] = batch_loss
             #losses['batch_skl'] = bskl
