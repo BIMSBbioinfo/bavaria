@@ -150,6 +150,7 @@ def main(args=None):
                                 args.feature_fraction,
                                 params['batchnames'])
         else:
+            print('conditional')
             metamodel = BatchConditionalEnsembleVAE(params,
                                 args.nrepeat, args.output,
                                 args.overwrite,
@@ -170,10 +171,10 @@ def main(args=None):
     sc.tl.louvain(adata)
     sc.tl.umap(adata)
 
-    if 'batchnames' in params:
-        adata = get_variable_regions(adata, batches=params['batchnames'])
-    else:
-        adata = get_variable_regions(adata, batches=None)
+    
+    if 'batchnames' not in params:
+        params['batchnames'] = None
+    adata = get_variable_regions(adata, batches=params['batchnames'])
     adata.write(os.path.join(args.output, "analysis.h5ad"))
     print(adata)
     print('saved to ' + os.path.join(args.output, "analysis.h5ad"))
