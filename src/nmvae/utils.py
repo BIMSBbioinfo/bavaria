@@ -38,7 +38,6 @@ def to_dataset(x, y=None, batch_size=64, shuffle=True):
     if shuffle:
         ds = ds.shuffle(batch_size*8)
     
-    #ds = ds.batch(batch_size).map(lambda x: tf.sparse.to_dense(x))
     ds = ds.batch(batch_size)
     ds = ds.prefetch(8)
     return ds
@@ -556,11 +555,12 @@ class BCVAE2(keras.Model):
         losses['loss'] = total_loss
         return losses
 
-
     def predict_step(self, data):
+        #print('predict_step', data)
         data = data[0]
         if isinstance(data, tuple):
             data, labels = data
+        
         z = self.encoder([data, labels])
         pred = self.decoder([z, data, labels])
         return pred
@@ -582,7 +582,6 @@ class BCVAE3(keras.Model):
         ba = [l.output for l in self.encoder.layers if 'combine_batches' in l.name]
         test_encoder = keras.Model(self.encoder.get_layer('input_data').input,
                                    [self.encoder.get_layer('random_latent').output, ba], name="encoder")
-                                    #self.encoder.get_layer('concatenate').output], name="encoder")
         self.test_encoder = test_encoder
 
     def save(self, filename):
@@ -609,7 +608,6 @@ class BCVAE3(keras.Model):
                           'KLlossLayer': KLlossLayer,
                           'ClipLayer': ClipLayer,
                           'BatchLoss': BatchLoss,
-                          'BatchKLLoss': BatchKLLoss,
                           'ExpandDims': ExpandDims,
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
                           'AddBiasLayer': AddBiasLayer,
@@ -659,8 +657,6 @@ class BCVAE3(keras.Model):
             kl_loss, batch_loss = self.encoder.losses
             losses['kl_loss'] = kl_loss
             losses['bloss'] = batch_loss
-            #losses['batch_skl'] = bskl
-            #losses['batch_kl'] = bkl
 
             pred = self.decoder([z, profile, labels])
             for i, loss in enumerate(self.decoder.losses):
