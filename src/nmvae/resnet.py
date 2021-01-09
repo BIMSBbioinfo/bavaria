@@ -14,9 +14,11 @@ from sklearn.preprocessing import OneHotEncoder
 from anndata import AnnData
 from anndata import read_h5ad
 from nmvae.utils import to_dataset, to_sparse
-from nmvae.utils import VAE, BCVAE
+from nmvae.utils import VAE
+from nmvae.utils import BCVAE
 from nmvae.utils import BCVAE2
-from nmvae.utils import BCVAE3 as BAVAE
+from nmvae.utils import BAVARIA
+from nmvae.utils import BAVARIA2
 from nmvae.utils import ClipLayer
 from nmvae.utils import KLlossLayer
 from nmvae.utils import Sampling
@@ -228,6 +230,62 @@ def create_batch_encoder_gan(params):
 
     return encoder
 
+
+def create_batch_encoder_gan_pred(params):
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+
+    encoder_inputs = keras.Input(shape=input_shape,
+                                 name='input_data')
+
+    x = encoder_inputs
+    xinit = layers.Dropout(params['inputdropout'])(x)
+
+    batches = []
+    nhidden_e = params['nhidden_e']
+    xinit = layers.Dense(nhidden_e)(xinit)
+    batches.append(create_batch_net(xinit, params, '00'))
+    xinit = layers.Activation(activation='relu')(xinit)
+    
+
+    for i in range(params['nlayers_e']):
+        x = layers.Dense(nhidden_e, activation="relu")(xinit)
+        x = layers.Dropout(params['hidden_e_dropout'])(x)
+        x = layers.Dense(nhidden_e)(x)
+        x = layers.Add()([x, xinit])
+        batches.append(create_batch_net(x, params, f'1{i}'))
+        xinit = layers.Activation(activation='relu')(x)
+
+    x = xinit
+
+    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
+    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
+    z_log_var = ClipLayer(-10., 10.)(z_log_var)
+
+    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
+
+    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
+
+    batches.append(create_batch_net(z, params, f'20'))
+
+    pred_batches = combine_batch_net(batches)
+
+    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    true_batch_layer = [ExpandDims()(l) for l in batch_inputs]
+
+    batch_loss = BatchLoss(name='batch_loss')([pred_batches, true_batch_layer])
+
+    encoder = keras.Model([encoder_inputs, batch_inputs], [z, batch_loss], name="encoder")
+
+    subparams =  dict(nlayersbatcher=3, nhiddenbatcher=10)
+    subparams['nbatchcats'] = params['nbatchcats']
+    subparams['batchnames'] = params['batchnames']
+    outbatch, latentbatch = create_batch_net_pred(encoder_inputs, subparams, name='extra_1')
+    batch_loss_pred = BatchLoss(name='batch_loss_pred')([pred_batches, true_batch_layer])
+    
+    return encoder
+
+
 def create_batcher(params):
 
     nsamples = params['nsamples']
@@ -239,6 +297,19 @@ def create_batcher(params):
     model = keras.Model(latent_input, targets, name='batcher')
 
     return model
+
+def create_batch_net_pred(inlayer, params, name):
+    x = inlayer
+    for i in range(params['nlayersbatcher']):
+       x = layers.Dense(params['nhiddenbatcher'], activation='relu',
+                        name=f'batchcorrect_{name}_hidden_{i}')(x)
+       x = layers.BatchNormalization(name=f'batchcorrect_batch_norm_{name}_{i}')(x)
+    if len(x.shape.as_list()) <= 2:
+        x = ExpandDims()(x)
+    x = hidden
+    targets = [layers.Dense(nl, activation='softmax', name='batchcorrect_'+name + '_out_' + bname)(x) \
+               for nl,bname in zip(params['nbatchcats'], params['batchnames'])]
+    return targets, hidden
 
 def create_batch_net(inlayer, params, name):
     x = layers.BatchNormalization(name='batchcorrect_batch_norm_1_'+name)(inlayer)
@@ -392,20 +463,23 @@ class EnsembleVAE:
             model = VAE.create(space, create_encoder, create_decoder)
         elif name == 'BCVAE':
             model = BCVAE2.create(space, create_batch_encoder, create_batch_decoder)
-        elif name == 'BAVAE':
-            model = BAVAE.create(space, create_batch_encoder_gan, create_batch_decoder)
+        elif name == 'BAVARIA':
+            model = BAVARIA.create(space, create_batch_encoder_gan, create_batch_decoder)
+        elif name == 'BAVARIA2':
+            model = BAVARIA2.create(space, create_batch_encoder_gan, create_batchlatent_decoder, create_batcher_gan)
         else:
             raise ValueError(f"Unknown model: {name}")
-        #model.#summary()
         return model
 
     def _load(self, path):
         if self.name == 'VAE':
             model = VAE.load(path)
         elif self.name == 'BCVAE':
-            model = BCVAE2.create(path)
-        elif self.name == 'BAVAE':
-            model = BAVAE.create(path)
+            model = BCVAE2.load(path)
+        elif self.name == 'BAVARIA':
+            model = BAVARIA.load(path)
+        elif self.name == 'BAVARIA2':
+            model = BAVARIA2.load(path)
         else:
             raise ValueError(f"Unknown model: {name}")
         return model
@@ -438,7 +512,6 @@ class EnsembleVAE:
 
                 print(f'Run repetition {r+1}')
                 space['datadims'] = x_train.shape[1]
-                #model = VAE.create(space, create_encoder, create_decoder)
                 model = self._create(self.name, space)
 
                 # initialize the output bias based on the overall read coverage
@@ -483,19 +556,29 @@ class EnsembleVAE:
                 model = VAE.load(os.path.join(self.output, f'repeat_{r+1}', 'model.h5'))
                 self.models.append(model)
 
+    def _get_dataset_prelim(self, x_data, adata, batch_size=64):
+        """ used without dummy labels"""
+        x_data, labels = self._get_predict_data(x_data, adata, dummy_labels=False)
+        tf_x = to_dataset(to_sparse(x_data), labels, shuffle=False, batch_size=batch_size)
+        return tf_x
+
+    def _get_dataset_final(self, x_data, adata, batch_size=64):
+        """ used with dummy labels"""
+        x_data, labels = self._get_predict_data(x_data, adata, dummy_labels=True)
+        tf_x = to_dataset(to_sparse(x_data), labels, shuffle=False, batch_size=batch_size)
+        return tf_x
+
     def encode_subset(self, adata, batch_size=64):
 
         dfs = []
-        data = adata.X
-        x_data_t = data.T.tocsr()
+        x_data = adata.X
+        x_data_t = x_data.T.tocsr()
         for i, model in enumerate(self.models):
             x_subdata = self._get_subfeatureset(x_data, x_data_t, i*10)
-            x_subdata, labels = self._get_predict_data(x_subdata, adata)
 
-            tf_x = to_dataset(to_sparse(x_subdata), labels, shuffle=False, batch_size=batch_size)
-
-            predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
-            out = predmodel.predict(tf_x)
+            tf_x = self._get_dataset_final(x_subdata, adata, batch_size=batch_size)
+ 
+            out = model.encoder_predict.predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
             adata.obsm[f'nmvae-run_{i+1}'] = out
@@ -507,8 +590,7 @@ class EnsembleVAE:
 
 
     def encode_full(self, adata, batch_size=64, skip_outliers=True):
-        x_subdata, labels = self._get_predict_data(adata.X, adata, dummy_labels=False)
-        tf_x = to_dataset(to_sparse(x_subdata), labels, shuffle=False, batch_size=batch_size)
+        tf_x = self._get_dataset_prelim(adata.X, adata, batch_size=batch_size)
 
         performance = []
         for model in self.models:
@@ -522,14 +604,12 @@ class EnsembleVAE:
             max_loss = max(performance)
 
         dfs = []
-        x_subdata, labels = self._get_predict_data(adata.X, adata, dummy_labels=True)
-        tf_x = to_dataset(to_sparse(x_subdata), labels, shuffle=False, batch_size=batch_size)
+        tf_x = self._get_dataset_final(adata.X, adata, batch_size=batch_size)
         for i, model in enumerate(self.models):
             if performance[i] > max_loss:
                 # skip outlie
                 continue
-            predmodel = keras.Model(model.encoder.inputs, model.encoder.get_layer('z_mean').output)
-            out = predmodel.predict(tf_x)
+            out = model.encoder_predict.predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
             adata.obsm[f'nmvae-run_{i+1}'] = out
@@ -545,19 +625,7 @@ class EnsembleVAE:
         else:
             return self.encode_full(adata, batch_size)
 
-class BatchAdversarialEnsembleVAE(EnsembleVAE):
-
-    def _get_train_test_label(self, x_data, adata, validation_split):
-        labels_train=[]
-        labels_test=[]
-        for label  in self.batchnames:
-            label_train, label_test = train_test_split(adata.obsm[label],
-                                               test_size=validation_split,
-                                               random_state=42)
-            labels_train.append(label_train)
-            labels_test.append(label_test)
-        return labels_train, labels_test
-                
+class BatchEnsembleVAE(EnsembleVAE):
     def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
         super().__init__(params=params,
                          repeats=repeats,
@@ -565,51 +633,7 @@ class BatchAdversarialEnsembleVAE(EnsembleVAE):
                          overwrite=overwrite,
                          feature_fraction=feature_fraction)
         self.batchnames = batchnames
-        self.name = 'BAVAE'
         
-    def _get_predict_label(self, adata, dummy_labels=True):
-        labels = [np.zeros_like(adata.obsm[label]) for label in self.batchnames]
-        if not dummy_labels:
-            return labels
-        for i,_ in enumerate(labels):
-            labels[i][:,0]=1
-        return labels
-
-    def encode_full(self, adata, batch_size=64, skip_outliers=True):
-        x_subdata, labels = self._get_predict_data(adata.X, adata, dummy_labels=False)
-        tf_x = to_dataset(to_sparse(x_subdata), labels, shuffle=False, batch_size=batch_size)
-
-        performance = []
-        for model in self.models:
-            perf = model.evaluate(tf_x, return_dict=True)
-            performance.append(perf['loss'])
-
-        performance = np.asarray(performance)
-        if skip_outliers:
-            max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
-        else:
-            max_loss = max(performance)
-
-        dfs = []
-        #x_subdata, _ = self._get_predict_data(adata.X, adata, dummy_labels=True)
-        tf_x = to_dataset(to_sparse(x_subdata), None, shuffle=False, batch_size=batch_size)
-        for i, model in enumerate(self.models):
-            if performance[i] > max_loss:
-                # skip outlie
-                continue
-            out = model.encoder_predict(tf_x)
-            df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
-            df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
-            adata.obsm[f'nmvae-run_{i+1}'] = out
-            dfs.append(df)
-        df = pd.concat(dfs, axis=1)
-        adata.obsm['nmvae-ensemble'] = df.values
-        df.to_csv(os.path.join(self.output, 'latent.csv'))
-        return adata
-
-
-class BatchConditionalEnsembleVAE(EnsembleVAE):
-
     def _get_train_test_label(self, x_data, adata, validation_split):
         labels_train=[]
         labels_test=[]
@@ -630,45 +654,57 @@ class BatchConditionalEnsembleVAE(EnsembleVAE):
         return labels
 
 
+class BatchAdversarialEnsembleVAE2(BatchEnsembleVAE):
+
     def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
         super().__init__(params=params,
                          repeats=repeats,
                          output=output,
                          overwrite=overwrite,
-                         feature_fraction=feature_fraction)
-        self.batchnames = batchnames
+                         feature_fraction=feature_fraction,
+                         batchnames=batchnames)
+        self.name = 'BAVARIA2'
+        
+class BatchAdversarialEnsembleVAE(BatchEnsembleVAE):
+
+    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
+        super().__init__(params=params,
+                         repeats=repeats,
+                         output=output,
+                         overwrite=overwrite,
+                         feature_fraction=feature_fraction,
+                         batchnames=batchnames)
+        self.name = 'BAVARIA'
+        
+    def _get_predict_data(self, x_data, adata, dummy_labels=True):
+        if dummy_labels:
+            # for feature extration, the batch label is not needed
+            labels = None
+        else:
+            labels = super()._get_predict_label(adata, dummy_labels=dummy_labels)
+        return x_data, labels
+        
+
+class BatchConditionalEnsembleVAE(BatchEnsembleVAE):
+
+    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
+        super().__init__(params=params,
+                         repeats=repeats,
+                         output=output,
+                         overwrite=overwrite,
+                         feature_fraction=feature_fraction,
+                         batchnames=batchnames)
         self.name = 'BCVAE'
         
-    def encode_full(self, adata, batch_size=64, skip_outliers=True):
-        data, labels = self._get_predict_data(adata.X, adata, dummy_labels=False)
-        tf_x = to_dataset(to_sparse(data), labels, shuffle=False, batch_size=batch_size)
+    def _get_dataset_prelim(self, x_data, adata, batch_size=64):
+        """ used without dummy labels"""
+        tf_x = super()._get_dataset_prelim(x_data, adata, batch_size=batch_size)
+        tf_x = tf.data.Dataset.zip((tf_x,))
+        return tf_x
 
-        performance = []
-        for model in self.models:
-            perf = model.evaluate(tf_x, return_dict=True)
-            performance.append(perf['loss'])
-
-        performance = np.asarray(performance)
-        if skip_outliers:
-            max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
-        else:
-            max_loss = max(performance)
-
-        dfs = []
-        data, labels = self._get_predict_data(adata.X, adata, dummy_labels=True)
-        tf_x = to_dataset(to_sparse(data), labels, shuffle=False, batch_size=batch_size)
-        for i, model in enumerate(self.models):
-            if performance[i] > max_loss:
-                # skip outlie
-                continue
-            predmodel = model.encoder_predict
-            out = np.concatenate([predmodel(inp, training=False) for inp in tf_x], axis=0)
-            df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
-            df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
-            adata.obsm[f'nmvae-run_{i+1}'] = out
-            dfs.append(df)
-        df = pd.concat(dfs, axis=1)
-        adata.obsm['nmvae-ensemble'] = df.values
-        df.to_csv(os.path.join(self.output, 'latent.csv'))
-        return adata
+    def _get_dataset_final(self, x_data, adata, batch_size=64):
+        """ used with dummy labels"""
+        tf_x = super()._get_dataset_final(x_data, adata, batch_size=batch_size)
+        tf_x = tf.data.Dataset.zip((tf_x,))
+        return tf_x
 
