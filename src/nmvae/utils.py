@@ -178,6 +178,8 @@ def negative_multinomial_likelihood(targets, logits, r):
     tf.debugging.check_numerics(likeli, "targets * log(p)")
     likeli += tf.reduce_sum(tf.math.xlogy(r, softmax1p0(logits) + 1e-10), axis=-1)
     tf.debugging.check_numerics(likeli, "r * log(1-p)")
+    likeli += tf.math.lgamma(tf.reduce_sum(r, axis=-1) + tf.reduce_sum(targets, axis=-1))
+    tf.debugging.check_numerics(likeli, "lgamma(r + x)")
     likeli -= tf.reduce_sum(tf.math.lgamma(r), axis=-1)
     tf.debugging.check_numerics(likeli, "lgamma(r)")
     return likeli
