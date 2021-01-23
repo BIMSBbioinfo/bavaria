@@ -143,7 +143,6 @@ class AddBiasLayer(keras.layers.Layer):
     def call(self, x):
         return x + tf.expand_dims(self.bias, 0)
 
-
 class NegativeMultinomialEndpoint(keras.layers.Layer):
     def call(self, inputs):
         targets = None

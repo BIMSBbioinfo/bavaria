@@ -55,8 +55,6 @@ def one_hot_encode_batches(adata, batchnames):
         if label not in adata.obsm:
             oh= OneHotEncoder(sparse=False).fit_transform(adata.obs[label].values.astype(str).reshape(-1,1).tolist())
             adata.obsm[label] = oh
-        if label not in adata.obs.columns:
-            adata.obs.loc[:,label] = adata.obs[label].values
     return adata
 
 def load_data(data, regions, cells):
@@ -75,8 +73,12 @@ def load_data(data, regions, cells):
 
     cmat.regions.loc[:,'name'] = colnames
     cmat.regions.set_index('name', inplace=True)
+    obs = cmat.cannot.copy()
+    obs.set_index('barcode', inplace=True)
+    if 'cell' in obs.columns:
+        obs.drop('cell', axis=1, inplace=True)
     adata = AnnData(x_data, 
-                    obs=pd.DataFrame(index=cmat.cannot.barcode),
+                    obs=obs,
                     var=cmat.regions)
     adata.obs_names_make_unique()
     return adata

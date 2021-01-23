@@ -119,7 +119,6 @@ def main(args=None):
                              "Default: 32.")
 
     args = parser.parse_args()
-    print(args)
 
     matrix = args.data
     regions = args.regions
@@ -129,12 +128,6 @@ def main(args=None):
     batchnames=args.batchnames
     # load the dataset
     adata = load_data(matrix, regions, barcodes)
-    print(adata)
-
-    if batches is not None:
-        batches = load_batch_labels(adata, batches)
-        adata.obs = pd.concat([adata.obs, batches], axis=1)
-        batchnames = batches.columns
 
     params = resnet_vae_params(args)
 
