@@ -21,18 +21,16 @@ import pandas as pd
 import tensorflow as tf
 import keras
 from nmvae import __version__
-from nmvae import VAE
-from nmvae.resnet import EnsembleVAE
-#from nmvae.resnet import BatchEnsembleVAE
-from nmvae.resnet import BatchConditionalEnsembleVAE
-from nmvae.resnet import BatchConditionalEnsembleVAE2
-from nmvae.resnet import BatchAdversarialEnsembleVAE
-from nmvae.resnet import BatchAdversarialEnsembleVAE2
-from nmvae.resnet import load_data
-from nmvae.resnet import load_batch_labels
-from nmvae.resnet import resnet_vae_params
-from nmvae.resnet import resnet_vae_batch_params
-from nmvae.resnet import one_hot_encode_batches
+from nmvae.ensembles import EnsembleVAE
+from nmvae.ensembles import BatchConditionalEnsembleVAE
+from nmvae.ensembles import BatchConditionalEnsembleVAE2
+from nmvae.ensembles import BatchAdversarialEnsembleVAE
+from nmvae.ensembles import BatchAdversarialEnsembleVAE2
+from nmvae.data import load_data
+from nmvae.data import load_batch_labels
+from nmvae.data import one_hot_encode_batches
+from nmvae.utils import resnet_vae_params
+from nmvae.utils import resnet_vae_batch_params
 from nmvae.utils import get_variable_regions
 import scanpy as sc
 import logging
