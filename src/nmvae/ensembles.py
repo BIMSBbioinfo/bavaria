@@ -157,23 +157,6 @@ class EnsembleVAE:
                              )
                 self.models.append(model)
 
-    def determine_outliers_threshold(self, data, batch_size=64):
-        tf_x_data = to_dataset(to_sparse(data), shuffle=False)
-        performance = []
-        for _, model in enumerate(models):
-            perf = model.evaluate(tf_x_data, return_dict=True)
-            performance.append(perf['loss'])
-
-        performance = np.asarray(performance)
-        max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
-        self.max_loss = max_loss
-
-    def get_models(self):
-        if len(self.models) < self.repeats:
-            for r in range(self.repeats):
-                model = VAE.load(os.path.join(self.output, f'repeat_{r+1}', 'model.h5'))
-                self.models.append(model)
-
     def _get_dataset_truebatchlabels(self, x_data, adata, batch_size=64):
         """ used without dummy labels"""
         x_data, labels = self._get_predict_data(x_data, adata, dummy_labels=False)
