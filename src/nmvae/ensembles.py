@@ -24,7 +24,8 @@ class EnsembleVAE:
         os.makedirs(output, exist_ok=True)
         self.space = params
         self.feature_fraction = feature_fraction
-        self.name = 'VAE'
+        self.name = 'vae'
+        print(f'using {self.name}')
         
     def _get_subfeatureset(self, X, Xt, random_state):
         """ Subset the features to speedup analysis."""
@@ -71,15 +72,15 @@ class EnsembleVAE:
         
     def _create(self, name, space):
         """ Create VAE model"""
-        if name == 'VAE':
+        if name == 'vae':
             model = VAE.create(space, create_encoder, create_decoder)
-        elif name == 'BCVAE':
+        elif name == 'bcvae':
             model = BCVAE2.create(space, create_batch_encoder, create_batch_decoder)
-        elif name == 'BCVAE2':
+        elif name == 'bcvae2':
             model = BCVAE2.create(space, create_batch_encoder_alllayers, create_batch_decoder)
-        elif name == 'BAVARIA':
+        elif name == 'bavaria':
             model = BAVARIA.create(space, create_batch_encoder_gan, create_batch_decoder)
-        elif name == 'BAVARIA2':
+        elif name == 'bavaria2':
             model = BAVARIA2.create(space, create_batch_encoder_gan, create_batchlatent_decoder, create_batchlatent_predictor)
         else:
             raise ValueError(f"Unknown model: {name}")
@@ -87,15 +88,15 @@ class EnsembleVAE:
 
     def _load(self, path):
         """ Reload VAE model"""
-        if self.name == 'VAE':
+        if self.name == 'vae':
             model = VAE.load(path)
-        elif self.name == 'BCVAE':
+        elif self.name == 'bcvae':
             model = BCVAE2.load(path)
-        elif self.name == 'BCVAE2':
+        elif self.name == 'bcvae2':
             model = BCVAE2.load(path)
-        elif self.name == 'BAVARIA':
+        elif self.name == 'bavaria':
             model = BAVARIA.load(path)
-        elif self.name == 'BAVARIA2':
+        elif self.name == 'bavaria2':
             model = BAVARIA2.load(path)
         else:
             raise ValueError(f"Unknown model: {name}")
@@ -227,13 +228,18 @@ class EnsembleVAE:
             return self.encode_full(adata, batch_size)
 
 class BatchEnsembleVAE(EnsembleVAE):
-    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
+    def __init__(self, name, params, repeats, output, overwrite, feature_fraction=1., batchnames=[],
+                 adversarial=True, conditional=False, ):
         super().__init__(params=params,
                          repeats=repeats,
                          output=output,
                          overwrite=overwrite,
                          feature_fraction=feature_fraction)
         self.batchnames = batchnames
+        self.name = name
+        self.adversarial = True if 'bavaria' in name else False
+        self.conditional = True if 'bcvae' in name else False
+        print(f'using {self.name}')
         
     def _get_train_test_label(self, x_data, adata, validation_split):
         labels_train=[]
@@ -247,6 +253,9 @@ class BatchEnsembleVAE(EnsembleVAE):
         return labels_train, labels_test
                 
     def _get_predict_label(self, adata, dummy_labels=True):
+        if self.adversarial and dummy_labels:
+            return None
+
         labels = [np.zeros_like(adata.obsm[label]) for label in self.batchnames]
         if not dummy_labels:
             return labels
@@ -254,82 +263,18 @@ class BatchEnsembleVAE(EnsembleVAE):
             labels[i][:,0]=1
         return labels
 
-
-class BatchAdversarialEnsembleVAE2(BatchEnsembleVAE):
-
-    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
-        super().__init__(params=params,
-                         repeats=repeats,
-                         output=output,
-                         overwrite=overwrite,
-                         feature_fraction=feature_fraction,
-                         batchnames=batchnames)
-        self.name = 'BAVARIA2'
-        print('using', self.name)
-        
-    def _get_predict_data(self, x_data, adata, dummy_labels=True):
-        if dummy_labels:
-            # for feature extration, the batch label is not needed
-            labels = None
-        else:
-            labels = super()._get_predict_label(adata, dummy_labels=dummy_labels)
-        return x_data, labels
-
-
-class BatchAdversarialEnsembleVAE(BatchEnsembleVAE):
-
-    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
-        super().__init__(params=params,
-                         repeats=repeats,
-                         output=output,
-                         overwrite=overwrite,
-                         feature_fraction=feature_fraction,
-                         batchnames=batchnames)
-        self.name = 'BAVARIA'
-        print('using', self.name)
-        
-    def _get_predict_data(self, x_data, adata, dummy_labels=True):
-        if dummy_labels:
-            # for feature extration, the batch label is not needed
-            labels = None
-        else:
-            labels = super()._get_predict_label(adata, dummy_labels=dummy_labels)
-        return x_data, labels
-        
-
-class BatchConditionalEnsembleVAE(BatchEnsembleVAE):
-
-    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
-        super().__init__(params=params,
-                         repeats=repeats,
-                         output=output,
-                         overwrite=overwrite,
-                         feature_fraction=feature_fraction,
-                         batchnames=batchnames)
-        self.name = 'BCVAE'
-        print('using', self.name)
-        
     def _get_dataset_truebatchlabels(self, x_data, adata, batch_size=64):
         """ used without dummy labels"""
         tf_x = super()._get_dataset_truebatchlabels(x_data, adata, batch_size=batch_size)
-        tf_x = tf.data.Dataset.zip((tf_x,))
+        if self.conditional:
+            tf_x = tf.data.Dataset.zip((tf_x,))
         return tf_x
 
     def _get_dataset_dummybatchlabels(self, x_data, adata, batch_size=64):
         """ used with dummy labels"""
         tf_x = super()._get_dataset_dummybatchlabels(x_data, adata, batch_size=batch_size)
-        tf_x = tf.data.Dataset.zip((tf_x,))
+        if self.conditional:
+            tf_x = tf.data.Dataset.zip((tf_x,))
         return tf_x
 
-class BatchConditionalEnsembleVAE2(BatchConditionalEnsembleVAE):
-
-    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
-        super().__init__(params=params,
-                         repeats=repeats,
-                         output=output,
-                         overwrite=overwrite,
-                         feature_fraction=feature_fraction,
-                         batchnames=batchnames)
-        self.name = 'BCVAE2'
-        print('using', self.name)
 

@@ -22,10 +22,11 @@ import tensorflow as tf
 import keras
 from nmvae import __version__
 from nmvae.ensembles import EnsembleVAE
-from nmvae.ensembles import BatchConditionalEnsembleVAE
-from nmvae.ensembles import BatchConditionalEnsembleVAE2
-from nmvae.ensembles import BatchAdversarialEnsembleVAE
-from nmvae.ensembles import BatchAdversarialEnsembleVAE2
+from nmvae.ensembles import BatchEnsembleVAE
+#from nmvae.ensembles import BatchConditionalEnsembleVAE
+#from nmvae.ensembles import BatchConditionalEnsembleVAE2
+#from nmvae.ensembles import BatchAdversarialEnsembleVAE
+#from nmvae.ensembles import BatchAdversarialEnsembleVAE2
 from nmvae.data import load_data
 from nmvae.data import load_batch_labels
 from nmvae.data import one_hot_encode_batches
@@ -136,33 +137,38 @@ def main(args=None):
         adata = one_hot_encode_batches(adata, batchnames)
         params.update(resnet_vae_batch_params(adata, batchnames))
 
-        if args.modelname == 'bavaria':
-            metamodel = BatchAdversarialEnsembleVAE(params,
+        metamodel = BatchEnsembleVAE(args.modelname, params,
                                 args.nrepeat, args.output,
                                 args.overwrite,
                                 args.feature_fraction,
                                 params['batchnames'])
-        elif args.modelname == 'bavaria2':
-            metamodel = BatchAdversarialEnsembleVAE2(params,
-                                args.nrepeat, args.output,
-                                args.overwrite,
-                                args.feature_fraction,
-                                params['batchnames'])
-        elif args.modelname == 'bcvae2':
-            print('conditional')
-            metamodel = BatchConditionalEnsembleVAE2(params,
-                                args.nrepeat, args.output,
-                                args.overwrite,
-                                args.feature_fraction,
-                                params['batchnames'])
+        #if args.modelname == 'bavaria':
+        #    metamodel = BatchAdversarialEnsembleVAE(params,
+        #                        args.nrepeat, args.output,
+        #                        args.overwrite,
+        #                        args.feature_fraction,
+        #                        params['batchnames'])
+        #elif args.modelname == 'bavaria2':
+        #    metamodel = BatchAdversarialEnsembleVAE2(params,
+        #                        args.nrepeat, args.output,
+        #                        args.overwrite,
+        #                        args.feature_fraction,
+        #                        params['batchnames'])
+        #elif args.modelname == 'bcvae2':
+        #    print('conditional')
+        #    metamodel = BatchConditionalEnsembleVAE2(params,
+        #                        args.nrepeat, args.output,
+        #                        args.overwrite,
+        #                        args.feature_fraction,
+        #                        params['batchnames'])
 
-        else:
-            print('conditional')
-            metamodel = BatchConditionalEnsembleVAE(params,
-                                args.nrepeat, args.output,
-                                args.overwrite,
-                                args.feature_fraction,
-                                params['batchnames'])
+        #else:
+        #    print('conditional')
+        #    metamodel = BatchConditionalEnsembleVAE(params,
+        #                        args.nrepeat, args.output,
+        #                        args.overwrite,
+        #                        args.feature_fraction,
+        #                        params['batchnames'])
 
     else:
         metamodel = EnsembleVAE(params,
