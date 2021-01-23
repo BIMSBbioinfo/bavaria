@@ -97,6 +97,7 @@ def resnet_vae_params(args):
         ('hidden_d_dropout', args.hidden_d_dropout),
         ('nhiddenbatcher', args.nhidden_b),
         ('nlayersbatcher', 2),
+        ('nlasthiddenbatcher', 5),
         ('latentdims', args.nlatent),
       ]
     )
@@ -183,6 +184,52 @@ def create_batch_encoder(params):
     return encoder
 
 
+def create_batch_encoder_alllayers(params):
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+
+    encoder_inputs = keras.Input(shape=input_shape,
+                                 name='input_data')
+ 
+    x = encoder_inputs
+    xinit = layers.Dropout(params['inputdropout'])(x)
+
+    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    batch_layer = batch_inputs
+
+    if len(batch_layer)>1:
+        batch_layer = layers.Concatenate()(batch_layer)
+    else:
+        batch_layer = batch_layer[0]
+
+    xinit = layers.Concatenate()([xinit, batch_layer])
+    nhidden_e = params['nhidden_e']
+    xinit = layers.Dense(nhidden_e, activation="relu")(xinit)
+
+    for _ in range(params['nlayers_e']):
+        x = layers.Dense(nhidden_e, activation="relu")(xinit)
+        x = layers.Dropout(params['hidden_e_dropout'])(x)
+        x = layers.Dense(nhidden_e)(x)
+
+        xbatch = layers.Dense(nhidden_e)(batch_layer)
+        x = layers.Add()([x, xinit, xbatch])
+        xinit = layers.Activation(activation='relu')(x)
+
+    x = xinit
+
+    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
+    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
+    z_log_var = ClipLayer(-10., 10.)(z_log_var)
+
+    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
+
+    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
+
+    encoder = keras.Model([encoder_inputs, batch_inputs], z, name="encoder")
+
+    return encoder
+
+
 def create_batch_encoder_gan(params):
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
@@ -229,62 +276,6 @@ def create_batch_encoder_gan(params):
 
     encoder = keras.Model([encoder_inputs, batch_inputs], [z, batch_loss], name="encoder")
 
-
-    return encoder
-
-
-def create_batch_encoder_gan_pred(params):
-    input_shape = (params['datadims'],)
-    latent_dim = params['latentdims']
-
-    encoder_inputs = keras.Input(shape=input_shape,
-                                 name='input_data')
-
-    x = encoder_inputs
-    xinit = layers.Dropout(params['inputdropout'])(x)
-
-    batches = []
-    nhidden_e = params['nhidden_e']
-    xinit = layers.Dense(nhidden_e)(xinit)
-    batches.append(create_batch_net(xinit, params, '00'))
-    xinit = layers.Activation(activation='relu')(xinit)
-    
-
-    for i in range(params['nlayers_e']):
-        x = layers.Dense(nhidden_e, activation="relu")(xinit)
-        x = layers.Dropout(params['hidden_e_dropout'])(x)
-        x = layers.Dense(nhidden_e)(x)
-        x = layers.Add()([x, xinit])
-        batches.append(create_batch_net(x, params, f'1{i}'))
-        xinit = layers.Activation(activation='relu')(x)
-
-    x = xinit
-
-    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
-    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
-    z_log_var = ClipLayer(-10., 10.)(z_log_var)
-
-    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
-
-    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
-
-    batches.append(create_batch_net(z, params, f'20'))
-
-    pred_batches = combine_batch_net(batches)
-
-    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
-    true_batch_layer = [ExpandDims()(l) for l in batch_inputs]
-
-    batch_loss = BatchLoss(name='batch_loss')([pred_batches, true_batch_layer])
-
-    encoder = keras.Model([encoder_inputs, batch_inputs], [z, batch_loss], name="encoder")
-
-    subparams =  dict(nlayersbatcher=3, nhiddenbatcher=10)
-    subparams['nbatchcats'] = params['nbatchcats']
-    subparams['batchnames'] = params['batchnames']
-    outbatch, latentbatch = create_batch_net_pred(encoder_inputs, subparams, name='extra_1')
-    batch_loss_pred = BatchLoss(name='batch_loss_pred')([pred_batches, true_batch_layer])
-    
     return encoder
 
 
@@ -300,18 +291,37 @@ def create_batcher(params):
 
     return model
 
-def create_batch_net_pred(inlayer, params, name):
-    x = inlayer
+def create_batchlatent_predictor(params):
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+
+    encoder_inputs = keras.Input(shape=input_shape,
+                                 name='input_data_2')
+
+    x = encoder_inputs
     for i in range(params['nlayersbatcher']):
        x = layers.Dense(params['nhiddenbatcher'], activation='relu',
-                        name=f'batchcorrect_{name}_hidden_{i}')(x)
-       x = layers.BatchNormalization(name=f'batchcorrect_batch_norm_{name}_{i}')(x)
+                        name=f'batchlatent_hidden_{i}')(x)
+       x = layers.BatchNormalization(name=f'batchlatent_batch_norm_{i}')(x)
+    x = layers.Dense(params['nlasthiddenbatcher'], activation='relu',
+                     name=f'batchlatent_lasthidden_{i}')(x)
+    hidden = x
     if len(x.shape.as_list()) <= 2:
         x = ExpandDims()(x)
-    x = hidden
-    targets = [layers.Dense(nl, activation='softmax', name='batchcorrect_'+name + '_out_' + bname)(x) \
-               for nl,bname in zip(params['nbatchcats'], params['batchnames'])]
-    return targets, hidden
+    pred_batches = [layers.Dense(nl, activation='softmax',
+                                 name='batchlatent_out_' + bname)(x) \
+                                 for nl,bname in \
+                                 zip(params['nbatchcats'], params['batchnames'])]
+
+    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    true_batch_layer = [ExpandDims()(l) for l in batch_inputs]
+
+    batch_loss_pred = BatchLoss(name='batch_loss_pred')([pred_batches, true_batch_layer])
+    
+    predictor = keras.Model([encoder_inputs, batch_inputs], [hidden, batch_loss_pred], name="batch_predictor")
+    predictor.summary()
+
+    return predictor
 
 def create_batch_net(inlayer, params, name):
     x = layers.BatchNormalization(name='batchcorrect_batch_norm_1_'+name)(inlayer)
@@ -414,6 +424,54 @@ def create_batch_decoder(params):
 
     return decoder
 
+def create_batchlatent_decoder(params):
+
+    nsamples = params['nsamples']
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+    batch_dim = params['batchnames']
+
+    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+    
+    batch_latent = keras.Input(shape=(params['nlasthiddenbatcher'],), name='batch_latent')
+    #batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    print(batch_latent)
+
+    batch_layer = layers.RepeatVector(nsamples)(batch_latent)
+    print(batch_layer)
+
+
+    x = layers.Concatenate()([latent_inputs, batch_layer])
+    print(x)
+
+    for nhidden in range(params['nlayers_d']):
+        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+        x = layers.Dropout(params['hidden_d_dropout'])(x)
+
+    target_inputs = keras.Input(shape=input_shape, name='targets')
+
+    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+
+    # multinomial part
+    logits = layers.Dense(params['datadims'],
+                          activation='linear', name='logits',
+                          use_bias=False)(x)
+
+    logits = AddBiasLayer(name='extra_bias')(logits)
+
+    # dispersion parameter
+    r = ScalarBiasLayer()(x)
+    r = layers.Activation(activation=tf.math.softplus)(r)
+    r = ClipLayer(1e-10, 1e5)(r)
+
+    prob_loss = NegativeMultinomialEndpoint()([logits, r, targets])
+
+    decoder = keras.Model([latent_inputs, target_inputs, batch_latent],
+                           prob_loss, name="decoder")
+    decoder.summary()
+
+    return decoder
+
 class EnsembleVAE:
     def __init__(self, params, repeats, output, overwrite, feature_fraction=1.):
         self.repeats = repeats
@@ -465,10 +523,12 @@ class EnsembleVAE:
             model = VAE.create(space, create_encoder, create_decoder)
         elif name == 'BCVAE':
             model = BCVAE2.create(space, create_batch_encoder, create_batch_decoder)
+        elif name == 'BCVAE2':
+            model = BCVAE2.create(space, create_batch_encoder_alllayers, create_batch_decoder)
         elif name == 'BAVARIA':
             model = BAVARIA.create(space, create_batch_encoder_gan, create_batch_decoder)
         elif name == 'BAVARIA2':
-            model = BAVARIA2.create(space, create_batch_encoder_gan, create_batchlatent_decoder, create_batcher_gan)
+            model = BAVARIA2.create(space, create_batch_encoder_gan, create_batchlatent_decoder, create_batchlatent_predictor)
         else:
             raise ValueError(f"Unknown model: {name}")
         return model
@@ -477,6 +537,8 @@ class EnsembleVAE:
         if self.name == 'VAE':
             model = VAE.load(path)
         elif self.name == 'BCVAE':
+            model = BCVAE2.load(path)
+        elif self.name == 'BCVAE2':
             model = BCVAE2.load(path)
         elif self.name == 'BAVARIA':
             model = BAVARIA.load(path)
@@ -667,6 +729,15 @@ class BatchAdversarialEnsembleVAE2(BatchEnsembleVAE):
                          batchnames=batchnames)
         self.name = 'BAVARIA2'
         
+    def _get_predict_data(self, x_data, adata, dummy_labels=True):
+        if dummy_labels:
+            # for feature extration, the batch label is not needed
+            labels = None
+        else:
+            labels = super()._get_predict_label(adata, dummy_labels=dummy_labels)
+        return x_data, labels
+
+
 class BatchAdversarialEnsembleVAE(BatchEnsembleVAE):
 
     def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
@@ -677,6 +748,7 @@ class BatchAdversarialEnsembleVAE(BatchEnsembleVAE):
                          feature_fraction=feature_fraction,
                          batchnames=batchnames)
         self.name = 'BAVARIA'
+        print('using', self.name)
         
     def _get_predict_data(self, x_data, adata, dummy_labels=True):
         if dummy_labels:
@@ -709,4 +781,16 @@ class BatchConditionalEnsembleVAE(BatchEnsembleVAE):
         tf_x = super()._get_dataset_final(x_data, adata, batch_size=batch_size)
         tf_x = tf.data.Dataset.zip((tf_x,))
         return tf_x
+
+class BatchConditionalEnsembleVAE2(BatchConditionalEnsembleVAE):
+
+    def __init__(self, params, repeats, output, overwrite, feature_fraction=1., batchnames=[]):
+        super().__init__(params=params,
+                         repeats=repeats,
+                         output=output,
+                         overwrite=overwrite,
+                         feature_fraction=feature_fraction,
+                         batchnames=batchnames)
+        self.name = 'BCVAE2'
+        
 

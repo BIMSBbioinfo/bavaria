@@ -25,7 +25,9 @@ from nmvae import VAE
 from nmvae.resnet import EnsembleVAE
 #from nmvae.resnet import BatchEnsembleVAE
 from nmvae.resnet import BatchConditionalEnsembleVAE
+from nmvae.resnet import BatchConditionalEnsembleVAE2
 from nmvae.resnet import BatchAdversarialEnsembleVAE
+from nmvae.resnet import BatchAdversarialEnsembleVAE2
 from nmvae.resnet import load_data
 from nmvae.resnet import load_batch_labels
 from nmvae.resnet import resnet_vae_params
@@ -109,7 +111,7 @@ def main(args=None):
              
     parser.add_argument("-batchnames", dest="batchnames", type=str, nargs='+', default=[],
                         help="Batch names in the anndata dataset. ")
-    parser.add_argument("-modelname", dest="modelname", type=str, default='bavaria', choices=['bavaria', 'bcvae'],
+    parser.add_argument("-modelname", dest="modelname", type=str, default='bavaria', choices=['bavaria', 'bavaria2', 'bcvae', 'bcvae2'],
                         help="Model name for batch correction. Default: bavaria")
 
              
@@ -142,6 +144,20 @@ def main(args=None):
                                 args.overwrite,
                                 args.feature_fraction,
                                 params['batchnames'])
+        elif args.modelname == 'bavaria2':
+            metamodel = BatchAdversarialEnsembleVAE2(params,
+                                args.nrepeat, args.output,
+                                args.overwrite,
+                                args.feature_fraction,
+                                params['batchnames'])
+        elif args.modelname == 'bcvae2':
+            print('conditional')
+            metamodel = BatchConditionalEnsembleVAE2(params,
+                                args.nrepeat, args.output,
+                                args.overwrite,
+                                args.feature_fraction,
+                                params['batchnames'])
+
         else:
             print('conditional')
             metamodel = BatchConditionalEnsembleVAE(params,

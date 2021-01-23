@@ -700,7 +700,7 @@ class BAVARIA(keras.Model):
 class BAVARIA2(keras.Model):
     """ Variational auto-encoder using batch-adversarial training."""
     def __init__(self, encoder, decoder, batch_predictor, **kwargs):
-        super(BAVARIA, self).__init__(**kwargs)
+        super(BAVARIA2, self).__init__(**kwargs)
         self.encoder = encoder
         self.encoder_predict = keras.Model(self.encoder.get_layer('input_data').input,
                                            self.encoder.get_layer('z_mean').output)
@@ -712,10 +712,6 @@ class BAVARIA2(keras.Model):
         self.batch_params = [w for w in encoder.trainable_weights if 'batchcorrect' in w.name]
 
         self.batch_predictor = batch_predictor
-        ba = [l.output for l in self.encoder.layers if 'combine_batches' in l.name]
-        test_encoder = keras.Model(self.encoder.get_layer('input_data').input,
-                                   [self.encoder.get_layer('random_latent').output, ba], name="encoder")
-        self.test_encoder = test_encoder
 
     def save(self, filename):
         if len(os.path.dirname(filename)) > 0:
@@ -792,21 +788,24 @@ class BAVARIA2(keras.Model):
             profile, labels = data
 
         with tf.GradientTape(persistent=True) as tape:
-            z, b = self.encoder(profile, labels)
+            z, b = self.encoder([profile, labels])
             kl_loss, batch_loss = self.encoder.losses
             losses['kl_loss'] = kl_loss
             losses['bloss'] = batch_loss
 
-            pred, latent = self.batch_predictor(profile, labels)
+            latent, pred = self.batch_predictor([profile, labels])
+            predict_loss = sum(self.batch_predictor.losses)
+            losses[f'batch_loss'] = predict_loss
 
             pred = self.decoder([z, profile, latent])
             for i, loss in enumerate(self.decoder.losses):
                 losses[f'recon_loss_{i}'] = loss
 
-
             recon_loss = sum(self.decoder.losses)
             total_loss = kl_loss + recon_loss - batch_loss
-            predict_loss = sum(self.batch_predictor.losses)
+
+        grads = tape.gradient(predict_loss, self.batch_predictor.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.batch_predictor.trainable_weights))
 
         grads = tape.gradient(total_loss, self.encoder_params + self.decoder.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.encoder_params + self.decoder.trainable_weights))
@@ -818,6 +817,8 @@ class BAVARIA2(keras.Model):
         losses['loss'] = total_loss
         for mn, s in zip(self.encoder.metrics_names, self.encoder.metrics):
             losses[mn] = s.result()
+        for mn, s in zip(self.batch_predictor.metrics_names, self.batch_predictor.metrics):
+            losses['bp'+mn] = s.result()
         return losses
 
 
@@ -828,7 +829,12 @@ class BAVARIA2(keras.Model):
         z, b = self.encoder(data)
 
         kl_loss, batch_loss = self.encoder.losses
-        pred = self.decoder([z, profile, labels])
+
+        latent, pred = self.batch_predictor([profile, labels])
+        predict_loss = sum(self.batch_predictor.losses)
+        losses[f'batch_loss'] = predict_loss
+
+        pred = self.decoder([z, profile, latent])
         recon_loss = sum(self.decoder.losses)
 
         total_loss = kl_loss + recon_loss - batch_loss
