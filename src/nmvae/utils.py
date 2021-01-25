@@ -7,7 +7,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import numpy as np
 import pandas as pd
-from keras.models import load_model
+from sklearn.preprocessing import OneHotEncoder
 
 def resnet_vae_batch_params(adata, batchnames):
     columns = batchnames
