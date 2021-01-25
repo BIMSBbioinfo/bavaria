@@ -10,6 +10,10 @@ from nmvae.layers import BatchLoss
 from nmvae.layers import ExpandDims
 
 class VAE(tf.keras.Model):
+    """
+    z = encoder(data)
+    recon = decoder([z, data])
+    """
     def __init__(self, encoder, decoder, **kwargs):
         super(VAE, self).__init__(**kwargs)
         self.encoder = encoder
@@ -116,6 +120,10 @@ class VAE(tf.keras.Model):
         return pred
 
 class BCVAE(tf.keras.Model):
+    """
+    z, batch_pred = encoder(data)
+    recon = decoder([z, data, batch])
+    """
     def __init__(self, encoder, decoder, batcher, **kwargs):
         super(BCVAE, self).__init__(**kwargs)
         self.encoder = encoder
@@ -197,12 +205,12 @@ class BCVAE(tf.keras.Model):
     def train_step(self, data):
         losses = dict()
         if isinstance(data, tuple):
-            data, labels = data
+            data, batch = data
         with tf.GradientTape(persistent=True) as tape:
             z = self.encoder(data)
             for i, loss in enumerate(self.encoder.losses):
                 losses[f'kl_loss_{i}'] = loss
-            pred = self.decoder([z, data, labels])
+            pred = self.decoder([z, data, batch])
             for i, loss in enumerate(self.decoder.losses):
                 losses[f'recon_loss_{i}'] = loss
 
@@ -210,7 +218,7 @@ class BCVAE(tf.keras.Model):
             if not isinstance(batchpred, tuple):
                 batchpred = (batchpred,)
             batch_loss = []
-            for i, (pred, labs) in enumerate(zip(batchpred, labels)):
+            for i, (pred, labs) in enumerate(zip(batchpred, batch)):
                 batch_loss.append(self.cce(labs, tf.math.reduce_mean(pred, axis=1)))
                 losses[f'batch_loss_{i}'] = batch_loss[-1]
 
@@ -231,15 +239,15 @@ class BCVAE(tf.keras.Model):
     def test_step(self, data):
         losses = dict()
         if isinstance(data, tuple):
-            data, labels = data
+            data, batch = data
         z = self.encoder(data)
-        pred = self.decoder([z, data, labels])
+        pred = self.decoder([z, data, batch])
         batchpred = self.batcher(z)
 
         if not isinstance(batchpred, tuple):
             batchpred = (batchpred,)
         batch_loss = []
-        for i, (pred, labs) in enumerate(zip(batchpred, labels)):
+        for i, (pred, labs) in enumerate(zip(batchpred, batch)):
             batch_loss.append(self.cce(labs, tf.math.reduce_mean(pred, axis=1)))
 
         batch_loss = sum(batch_loss)
@@ -252,14 +260,17 @@ class BCVAE(tf.keras.Model):
     def predict_step(self, data):
         data = data[0]
         if isinstance(data, tuple):
-            data, labels = data
+            data, batch = data
         z = self.encoder(data)
-        pred = self.decoder([z, data, labels])
+        pred = self.decoder([z, data, batch])
         return pred
 
 
 class BCVAE2(tf.keras.Model):
-    """ Variational auto-encoder using the batch label as input condition"""
+    """
+    z = encoder([data, batch])
+    recon = decoder([z, data, batch])
+    """
     def __init__(self, encoder, decoder, **kwargs):
         super(BCVAE2, self).__init__(**kwargs)
         self.encoder = encoder
@@ -316,10 +327,10 @@ class BCVAE2(tf.keras.Model):
 
     def call(self, data):
         if isinstance(data, tuple):
-            data, labels = data
-        z = self.encoder([data, labels])
+            data, batch = data
+        z = self.encoder([data, batch])
         if len(self.decoder.losses) > 0:
-            pred = self.decoder([z, data, labels])
+            pred = self.decoder([z, data, batch])
         else:
             pred = self.decoder(z)
 
@@ -332,12 +343,12 @@ class BCVAE2(tf.keras.Model):
     def train_step(self, data):
         losses = dict()
         if isinstance(data, tuple):
-            data, labels = data
+            data, batch = data
         with tf.GradientTape(persistent=True) as tape:
-            z = self.encoder([data, labels])
+            z = self.encoder([data, batch])
             for i, loss in enumerate(self.encoder.losses):
                 losses[f'kl_loss_{i}'] = loss
-            pred = self.decoder([z, data, labels])
+            pred = self.decoder([z, data, batch])
             for i, loss in enumerate(self.decoder.losses):
                 losses[f'recon_loss_{i}'] = loss
 
@@ -353,9 +364,9 @@ class BCVAE2(tf.keras.Model):
     def test_step(self, data):
         losses = dict()
         if isinstance(data, tuple):
-            data, labels = data
-        z = self.encoder([data, labels])
-        pred = self.decoder([z, data, labels])
+            data, batch = data
+        z = self.encoder([data, batch])
+        pred = self.decoder([z, data, batch])
 
         total_loss = sum(self.encoder.losses) + sum(self.decoder.losses)
 
@@ -366,14 +377,17 @@ class BCVAE2(tf.keras.Model):
         #print('predict_step', data)
         data = data[0]
         if isinstance(data, tuple):
-            data, labels = data
+            data, batch = data
         
-        z = self.encoder([data, labels])
-        pred = self.decoder([z, data, labels])
+        z = self.encoder([data, batch])
+        pred = self.decoder([z, data, batch])
         return pred
 
 class BAVARIA(tf.keras.Model):
-    """ Variational auto-encoder using batch-adversarial training."""
+    """
+    z, batch_pred = encoder([data, batch])
+    recon = decoder([z, data, batch])
+    """
     def __init__(self, encoder, decoder, **kwargs):
         super(BAVARIA, self).__init__(**kwargs)
         self.encoder = encoder
@@ -441,10 +455,10 @@ class BAVARIA(tf.keras.Model):
 
     def call(self, data):
         if isinstance(data, tuple):
-            data, labels = data
-        z = self.encoder([data, labels])
+            data, batch = data
+        z = self.encoder([data, batch])
         if len(self.decoder.losses) > 0:
-            pred = self.decoder([z, data, labels])
+            pred = self.decoder([z, data, batch])
         else:
             pred = self.decoder(z)
 
@@ -457,15 +471,15 @@ class BAVARIA(tf.keras.Model):
     def train_step(self, data):
         losses = dict()
         if isinstance(data, tuple):
-            profile, labels = data
+            profile, batch = data
 
         with tf.GradientTape(persistent=True) as tape:
-            z, b = self.encoder(data)
+            z, b = self.encoder([profile, batch])
             kl_loss, batch_loss = self.encoder.losses
             losses['kl_loss'] = kl_loss
             losses['bloss'] = batch_loss
 
-            pred = self.decoder([z, profile, labels])
+            pred = self.decoder([z, profile, batch])
             for i, loss in enumerate(self.decoder.losses):
                 losses[f'recon_loss_{i}'] = loss
 
@@ -488,11 +502,11 @@ class BAVARIA(tf.keras.Model):
     def test_step(self, data):
         losses = dict()
         if isinstance(data, tuple):
-            profile, labels = data
-        z, b = self.encoder(data)
+            profile, batch = data
+        z, b = self.encoder([profile, batch])
 
         kl_loss, batch_loss = self.encoder.losses
-        pred = self.decoder([z, profile, labels])
+        pred = self.decoder([z, profile, batch])
         recon_loss = sum(self.decoder.losses)
 
         total_loss = kl_loss + recon_loss - batch_loss
@@ -504,7 +518,7 @@ class BAVARIA(tf.keras.Model):
 
 
 class BAVARIA2(tf.keras.Model):
-    """ Variational auto-encoder using batch-adversarial training."""
+    """ Experimental BAVARIA with batch-feature extractor."""
     def __init__(self, encoder, decoder, batch_predictor, **kwargs):
         super(BAVARIA2, self).__init__(**kwargs)
         self.encoder = encoder
