@@ -27,12 +27,12 @@ class EnsembleVAE:
         self.name = 'vae'
         print(f'using {self.name}')
         
-    def _get_subfeatureset(self, X, Xt, random_state):
+    def _get_subfeatureset(self, X, Xt, repeat):
         """ Subset the features to speedup analysis."""
         if self.feature_fraction < 1.:
            x_data, _ = train_test_split(Xt,
                                         train_size=self.feature_fraction,
-                                        random_state=random_state)
+                                        random_state=repeat*10)
            x_data = x_data.T.tocsr()
         else:
            x_data = X
@@ -114,7 +114,7 @@ class EnsembleVAE:
        
         for r in range(self.repeats):
             # random feature subset
-            x_subdata = self._get_subfeatureset(x_data, x_data_t, r*10)
+            x_subdata = self._get_subfeatureset(x_data, x_data_t, r)
 
             x_train, x_test, label_train, label_test = self._get_train_test(x_subdata, adata, validation_split)
 
@@ -176,7 +176,7 @@ class EnsembleVAE:
         x_data = adata.X
         x_data_t = x_data.T.tocsr()
         for i, model in enumerate(self.models):
-            x_subdata = self._get_subfeatureset(x_data, x_data_t, i*10)
+            x_subdata = self._get_subfeatureset(x_data, x_data_t, i)
 
             tf_x = self._get_dataset_dummybatchlabels(x_subdata, adata, batch_size=batch_size)
  
