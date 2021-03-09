@@ -299,6 +299,8 @@ def create_batch_net(inlayer, params, name):
     return targets
 
 def combine_batch_net(batches):
+    if len(batches)<=1:
+        return batches[0]
     new_output = []
     for bo,_ in enumerate(batches[0]):
         new_output.append(layers.Concatenate(axis=1, name=f'combine_batches_{bo}')([batch[bo] for batch in batches]))
