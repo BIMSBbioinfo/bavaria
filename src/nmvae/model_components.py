@@ -1,3 +1,4 @@
+import warnings
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -9,9 +10,12 @@ from nmvae.layers import ExpandDims
 from nmvae.layers import BatchLoss
 from nmvae.layers import ScalarBiasLayer
 from nmvae.layers import AddBiasLayer
+from nmvae.layers import AverageChannel
 from nmvae.layers import NegativeMultinomialEndpoint
+from nmvae.layers import NegativeMultinomialEndpointV2
 
 def create_encoder(params):
+    """ Encoder without batch correction."""
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
 
@@ -46,6 +50,7 @@ def create_encoder(params):
 
 
 def create_batch_encoder(params):
+    """ Condition on batches at first layer."""
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
 
@@ -90,6 +95,7 @@ def create_batch_encoder(params):
 
 
 def create_batch_encoder_alllayers(params):
+    """ Condition on batches in all hidden layers."""
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
 
@@ -136,6 +142,7 @@ def create_batch_encoder_alllayers(params):
 
 
 def create_batch_encoder_gan(params):
+    """ With batch-adversarial learning on all hidden layers."""
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
 
@@ -197,6 +204,8 @@ def create_batcher(params):
     return model
 
 def create_batchlatent_predictor(params):
+    warnings.warn("create_batchlatent_predictor is experimental and may be removed.",
+                  type=DeprecationWarning)
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
 
@@ -339,8 +348,6 @@ def create_batchlatent_decoder(params):
     latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
     
     batch_latent = keras.Input(shape=(params['nlasthiddenbatcher'],), name='batch_latent')
-    #batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
-    #print(batch_latent)
 
     batch_layer = layers.RepeatVector(nsamples)(batch_latent)
     #print(batch_layer)
