@@ -194,23 +194,25 @@ class EnsembleVAE:
     def encode_full(self, adata, batch_size=64, skip_outliers=True):
         tf_x = self._get_dataset_truebatchlabels(adata.X, adata, batch_size=batch_size)
 
-        performance = []
-        for model in self.models:
-            perf = model.evaluate(tf_x, return_dict=True)
-            performance.append(perf['loss'])
+        if not skip_outliers:
+            performance = []
+            for model in self.models:
+                perf = model.evaluate(tf_x, return_dict=True)
+                performance.append(perf['loss'])
 
-        performance = np.asarray(performance)
-        if skip_outliers:
-            max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
-        else:
-            max_loss = max(performance)
+            performance = np.asarray(performance)
+            if skip_outliers:
+                max_loss = np.quantile(performance, .75) + 1.5* iqr(performance)
+            else:
+                max_loss = max(performance)
 
         dfs = []
         tf_x = self._get_dataset_dummybatchlabels(adata.X, adata, batch_size=batch_size)
         for i, model in enumerate(self.models):
-            if performance[i] > max_loss:
-                # skip outlie
-                continue
+            if skip_outliers:
+                if performance[i] > max_loss:
+                    # skip outlie
+                    continue
             out = model.encoder_predict.predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
