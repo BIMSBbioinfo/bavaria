@@ -80,8 +80,8 @@ class EnsembleVAE:
             model = BCVAE2.create(space, create_batch_encoder_alllayers, create_batch_decoder)
         elif name == 'bavaria':
             model = BAVARIA.create(space, create_batch_encoder_gan, create_batch_decoder)
-        elif name == 'bavaria2':
-            model = BAVARIA2.create(space, create_batch_encoder_gan, create_batchlatent_decoder, create_batchlatent_predictor)
+        elif name == 'bavaria-0':
+            model = BAVARIA.create(space, create_batch_encoder_gan_lastlayer, create_batch_decoder)
         else:
             raise ValueError(f"Unknown model: {name}")
         return model
@@ -96,8 +96,8 @@ class EnsembleVAE:
             model = BCVAE2.load(path)
         elif self.name == 'bavaria':
             model = BAVARIA.load(path)
-        elif self.name == 'bavaria2':
-            model = BAVARIA2.load(path)
+        elif self.name == 'bavaria-0':
+            model = BAVARIA.load(path)
         else:
             raise ValueError(f"Unknown model: {name}")
         return model
@@ -157,6 +157,7 @@ class EnsembleVAE:
                                   amsgrad=True)
                              )
                 self.models.append(model)
+        model.summary()
 
     def _get_dataset_truebatchlabels(self, x_data, adata, batch_size=64):
         """ used without dummy labels"""
