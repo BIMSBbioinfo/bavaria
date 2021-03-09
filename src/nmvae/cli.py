@@ -149,7 +149,8 @@ def main(args=None):
         metamodel = EnsembleVAE(params,
                             args.nrepeat, args.output,
                             args.overwrite,
-                            args.feature_fraction)
+                            name=args.modelname,
+                            feature_fraction=args.feature_fraction)
 
     metamodel.fit(adata, epochs=args.epochs, batch_size=args.batch_size)
 

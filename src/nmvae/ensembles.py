@@ -12,7 +12,7 @@ from nmvae.data import to_sparse
 from scipy.stats import iqr
 
 class EnsembleVAE:
-    def __init__(self, params, repeats, output, overwrite, feature_fraction=1.):
+    def __init__(self, params, repeats, output, overwrite, name='vae', feature_fraction=1.):
         self.repeats = repeats
         self.output = output
         self.models = []
@@ -23,8 +23,8 @@ class EnsembleVAE:
         
         os.makedirs(output, exist_ok=True)
         self.space = params
-        self.feature_fraction = feature_fraction
-        self.name = 'vae'
+        self.feature_fraction = max(min(feature_fraction, 1.), 0.)
+        self.name = name
         print(f'using {self.name}')
         
     def _get_subfeatureset(self, X, Xt, repeat):
@@ -234,9 +234,10 @@ class BatchEnsembleVAE(EnsembleVAE):
                          repeats=repeats,
                          output=output,
                          overwrite=overwrite,
+                         name=name,
                          feature_fraction=feature_fraction)
         self.batchnames = batchnames
-        self.name = name
+        #self.name = name
         self.adversarial = True if 'bavaria' in name else False
         self.conditional = True if 'bcvae' in name else False
         print(f'using {self.name}')
