@@ -191,6 +191,56 @@ def create_batch_encoder_gan(params):
     return encoder
 
 
+def create_batch_encoder_gan_lastlayer(params):
+    """ With batch-adversarial learning on last latent dims."""
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+
+    encoder_inputs = keras.Input(shape=input_shape,
+                                 name='input_data')
+
+    x = encoder_inputs
+    xinit = layers.Dropout(params['inputdropout'])(x)
+
+    batches = []
+    nhidden_e = params['nhidden_e']
+    xinit = layers.Dense(nhidden_e)(xinit)
+    #batches.append(create_batch_net(xinit, params, '00'))
+    xinit = layers.Activation(activation='relu')(xinit)
+    
+
+    for i in range(params['nlayers_e']):
+        x = layers.Dense(nhidden_e, activation="relu")(xinit)
+        x = layers.Dropout(params['hidden_e_dropout'])(x)
+        x = layers.Dense(nhidden_e)(x)
+        x = layers.Add()([x, xinit])
+        #batches.append(create_batch_net(x, params, f'1{i}'))
+        xinit = layers.Activation(activation='relu')(x)
+
+    x = xinit
+
+    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
+    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
+    z_log_var = ClipLayer(-10., 10.)(z_log_var)
+
+    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
+
+    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
+
+    batches.append(create_batch_net(z, params, f'20'))
+
+    pred_batches = combine_batch_net(batches)
+
+    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+    true_batch_layer = [ExpandDims()(l) for l in batch_inputs]
+
+    batch_loss = BatchLoss(name='batch_loss')([pred_batches, true_batch_layer])
+
+    encoder = keras.Model([encoder_inputs, batch_inputs], [z, batch_loss], name="encoder")
+
+    return encoder
+
+
 def create_batcher(params):
 
     nsamples = params['nsamples']
