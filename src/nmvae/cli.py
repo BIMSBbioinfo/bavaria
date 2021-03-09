@@ -106,8 +106,12 @@ def main(args=None):
              
     parser.add_argument("-batchnames", dest="batchnames", type=str, nargs='+', default=[],
                         help="Batch names in the anndata dataset. ")
-    parser.add_argument("-modelname", dest="modelname", type=str, default='bavaria', choices=['bavaria', 'bavaria2', 'bcvae', 'bcvae2'],
-                        help="Model name for batch correction. Default: bavaria")
+    parser.add_argument("-modelname", dest="modelname", type=str, default='vae', choices=[
+                                                                                          'bavaria-0', 'bavaria', 
+                                                                                          'bcvae', 'bcvae2', 
+                                                                                           'vae',
+                                                                                         ],
+                        help="Model name for batch correction. Default: vae")
     parser.add_argument('-resolution', dest='resolution', type=float, default=1.,
                         help="Resolution for Louvain clustering analysis.")
 
