@@ -142,34 +142,6 @@ def main(args=None):
                                 args.overwrite,
                                 args.feature_fraction,
                                 params['batchnames'])
-        #if args.modelname == 'bavaria':
-        #    metamodel = BatchAdversarialEnsembleVAE(params,
-        #                        args.nrepeat, args.output,
-        #                        args.overwrite,
-        #                        args.feature_fraction,
-        #                        params['batchnames'])
-        #elif args.modelname == 'bavaria2':
-        #    metamodel = BatchAdversarialEnsembleVAE2(params,
-        #                        args.nrepeat, args.output,
-        #                        args.overwrite,
-        #                        args.feature_fraction,
-        #                        params['batchnames'])
-        #elif args.modelname == 'bcvae2':
-        #    print('conditional')
-        #    metamodel = BatchConditionalEnsembleVAE2(params,
-        #                        args.nrepeat, args.output,
-        #                        args.overwrite,
-        #                        args.feature_fraction,
-        #                        params['batchnames'])
-
-        #else:
-        #    print('conditional')
-        #    metamodel = BatchConditionalEnsembleVAE(params,
-        #                        args.nrepeat, args.output,
-        #                        args.overwrite,
-        #                        args.feature_fraction,
-        #                        params['batchnames'])
-
     else:
         metamodel = EnsembleVAE(params,
                             args.nrepeat, args.output,
