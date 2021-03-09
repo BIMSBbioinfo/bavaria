@@ -112,6 +112,9 @@ def main(args=None):
                         help="Batch names in the anndata dataset. ")
     parser.add_argument("-modelname", dest="modelname", type=str, default='bavaria', choices=['bavaria', 'bavaria2', 'bcvae', 'bcvae2'],
                         help="Model name for batch correction. Default: bavaria")
+    parser.add_argument('-resolution', dest='resolution', type=float, default=1.,
+                        help="Resolution for Louvain clustering analysis.")
+
 
              
     parser.add_argument('-nhidden_b', dest='nhidden_b', type=int,
@@ -153,7 +156,7 @@ def main(args=None):
     adata = metamodel.encode(adata)
 
     sc.pp.neighbors(adata, n_neighbors=15, use_rep="nmvae-ensemble")
-    sc.tl.louvain(adata)
+    sc.tl.louvain(adata, resolution=args.resolution)
     sc.tl.umap(adata)
 
     
