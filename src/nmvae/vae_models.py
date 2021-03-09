@@ -4,10 +4,12 @@ from nmvae.layers import Sampling
 from nmvae.layers import KLlossLayer
 from nmvae.layers import ClipLayer
 from nmvae.layers import NegativeMultinomialEndpoint
+from nmvae.layers import NegativeMultinomialEndpointV2
 from nmvae.layers import AddBiasLayer
 from nmvae.layers import ScalarBiasLayer
 from nmvae.layers import BatchLoss
 from nmvae.layers import ExpandDims
+from keras.models import load_model
 
 class VAE(tf.keras.Model):
     """
@@ -45,6 +47,7 @@ class VAE(tf.keras.Model):
                           'KLlossLayer': KLlossLayer,
                           'ClipLayer': ClipLayer,
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
+                          'NegativeMultinomialEndpointV2': NegativeMultinomialEndpointV2,
                           'AddBiasLayer': AddBiasLayer,
                           'ScalarBiasLayer':ScalarBiasLayer,
                          }

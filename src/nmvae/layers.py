@@ -1,6 +1,5 @@
 import tensorflow as tf
 from tensorflow.keras import layers
-#from tensorflow import keras
 
 @tf.function
 def multinomial_likelihood(targets, p):
@@ -21,6 +20,30 @@ def negative_multinomial_likelihood(targets, logits, r):
 
 
 @tf.function
+def negative_multinomial_likelihood_v2(targets, mul_logits, p0_logits, r):
+    X = tf.reduce_sum(targets, axis=-1)
+    #nb likelihood
+    likeli = tf.math.lgamma(tf.reduce_sum(r, axis=-1) + X)
+    likeli -= tf.reduce_sum(tf.math.lgamma(r), axis=-1)
+    likeli += tf.reduce_sum(tf.math.xlogy(r, tf.math.sigmoid(p0_logits)+1e-10), axis=-1)
+
+    # mul likelihood
+    p = _softmax(mul_logits)*tf.math.sigmoid(-p0_logits)
+    likeli += tf.reduce_sum(tf.math.xlogy(targets, p+1e-10), axis=-1)
+    tf.debugging.check_numerics(likeli, "negative_multinomial_likelihood_v2")
+    return likeli
+
+
+@tf.function
+def _softmax(x):
+    xmax = tf.reduce_max(x, axis=-1, keepdims=True)
+    x = x - xmax
+    sp = tf.exp(x) / tf.reduce_sum(tf.exp(x), axis=-1, keepdims=True)
+    tf.debugging.check_numerics(sp, "_softmax is NaN")
+    return sp
+
+
+@tf.function
 def softmax1p(x):
     xmax = tf.reduce_max(x, axis=-1, keepdims=True)
     x = x - xmax
@@ -38,6 +61,8 @@ def softmax1p0(x):
     tf.debugging.check_numerics(sp, "softmax1p0 is NaN")
     return sp
 
+
+    
 
 class ExpandDims(layers.Layer):
     def __init__(self, axis=1, *args, **kwargs):
@@ -121,6 +146,13 @@ class BatchLoss(layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape[0]
 
+class AverageChannel(layers.Layer):
+    def call(self, inputs):
+        return tf.math.reduce_mean(inputs, axis=-1, keepdims=True)
+    def compute_output_shape(self, input_shape):
+        return input_shape[:-1] + (1,)
+    
+
 class ScalarBiasLayer(layers.Layer):
     def build(self, input_shape):
         self.bias = self.add_weight('bias',
@@ -160,6 +192,32 @@ class NegativeMultinomialEndpoint(layers.Layer):
 
         p = softmax1p(logits)
         p0 = softmax1p0(logits)
+        return p * r / (p0 + 1e-10)
+
+
+class NegativeMultinomialEndpointV2(layers.Layer):
+    def call(self, inputs):
+        targets = None
+        if len(inputs) == 4:
+            mul_logits, p0_logit, r, targets = inputs
+        else:
+            mul_logits, p0_logit, r = inputs
+
+        if targets is not None:
+
+            reconstruction_loss = -tf.reduce_mean(
+                           negative_multinomial_likelihood_v2(targets, mul_logits, p0_logit, r)
+                         )
+            self.add_loss(reconstruction_loss)
+
+            tf.debugging.check_numerics(reconstruction_loss,
+                                        "NegativeMultinomialEndpoint NaN")
+
+        p0 = tf.math.sigmoid(p0_logit)
+        p1 = tf.math.sigmoid(-p0_logit)
+
+        pm = _softmax(mul_logits)
+        p = pm * p1
         return p * r / (p0 + 1e-10)
 
 
