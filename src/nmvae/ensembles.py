@@ -29,13 +29,13 @@ class EnsembleVAE:
         
     def _get_subfeatureset(self, X, Xt, repeat):
         """ Subset the features to speedup analysis."""
-        if self.feature_fraction < 1.:
-           x_data, _ = train_test_split(Xt,
-                                        train_size=self.feature_fraction,
-                                        random_state=repeat*10)
-           x_data = x_data.T.tocsr()
-        else:
-           x_data = X
+        if self.feature_fraction >= 1.:
+            return X
+
+        x_data, _ = train_test_split(Xt,
+                                     train_size=self.feature_fraction,
+                                     random_state=repeat*10)
+        x_data = x_data.T.tocsr()
         return x_data
         
     def _get_train_test_data(self, x_data, adata, validation_split):
