@@ -280,6 +280,8 @@ def create_batch_encoder_gan_lastlayer(params):
 
 
 def create_batcher(params):
+    warnings.warn("create_batcher is experimental and may be removed.",
+                  type=DeprecationWarning)
 
     nsamples = params['nsamples']
     latent_dim = params['latentdims']
@@ -381,6 +383,183 @@ def create_decoder(params):
 
     return decoder
 
+#def create_decoder_v20(params):
+#    warnings.warn("create_decoder_v20 is experimental and may be removed.",
+#                  type=DeprecationWarning)
+#
+#    nsamples = params['nsamples']
+#    input_shape = (params['datadims'],)
+#    latent_dim = params['latentdims']
+#
+#    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+#
+#    x = latent_inputs
+#
+#    for nhidden in range(params['nlayers_d']):
+#        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+#        x = layers.Dropout(params['hidden_d_dropout'])(x)
+#
+#    target_inputs = keras.Input(shape=input_shape, name='targets')
+#
+#    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+#
+#    # multinomial part
+#    mullogits = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(x)
+#
+#    mullogits = AddBiasLayer(name='extra_bias')(mullogits)
+#
+#    # dispersion parameter
+#    
+#    p0logit = layers.Dense(1)(latent_inputs)
+#    r = layers.Dense(1)(latent_inputs)
+#    r = layers.Activation(activation=tf.math.softplus)(r)
+#    r = ClipLayer(1e-10, 1e5)(r)
+#
+#    prob_loss = NegativeMultinomialEndpointV2()([mullogits, p0logit, r, targets])
+#
+#    decoder = keras.Model([latent_inputs, target_inputs],
+#                           prob_loss, name="decoder")
+#
+#    return decoder
+#
+#def create_decoder_v21(params):
+#    warnings.warn("create_decoder_v21 is experimental and may be removed.",
+#                  type=DeprecationWarning)
+#
+#    nsamples = params['nsamples']
+#    input_shape = (params['datadims'],)
+#    latent_dim = params['latentdims']
+#
+#    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+#
+#    x = latent_inputs
+#
+#    for nhidden in range(params['nlayers_d']):
+#        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+#        x = layers.Dropout(params['hidden_d_dropout'])(x)
+#
+#    target_inputs = keras.Input(shape=input_shape, name='targets')
+#
+#    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+#    #targets = layers.RepeatVector(nsamples)(targets)
+#
+#    # multinomial part
+#    mullogits = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(x)
+#
+#    mullogits = AddBiasLayer(name='extra_bias')(mullogits)
+#
+#    # dispersion parameter
+#    x = AverageChannel()(targets)
+#    #x = layers.Concatenate(axis=-1)([latent_inputs, targets])
+#
+#    p0logit = layers.Dense(1)(x)
+#    r = layers.Dense(1)(x)
+#    r = layers.Activation(activation=tf.math.softplus)(r)
+#    r = ClipLayer(1e-10, 1e5)(r)
+#
+#    prob_loss = NegativeMultinomialEndpointV2()([mullogits, p0logit, r, targets])
+#
+#    decoder = keras.Model([latent_inputs, target_inputs],
+#                           prob_loss, name="decoder")
+#
+#    return decoder
+#
+#def create_decoder_v22(params):
+#    warnings.warn("create_decoder_v22 is experimental and may be removed.",
+#                  type=DeprecationWarning)
+#
+#    nsamples = params['nsamples']
+#    input_shape = (params['datadims'],)
+#    latent_dim = params['latentdims']
+#
+#    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+#
+#    x = latent_inputs
+#
+#    for nhidden in range(params['nlayers_d']):
+#        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+#        x = layers.Dropout(params['hidden_d_dropout'])(x)
+#
+#    target_inputs = keras.Input(shape=input_shape, name='targets')
+#
+#    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+#
+#    # multinomial part
+#    mullogits = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(x)
+#
+#    mullogits = AddBiasLayer(name='extra_bias')(mullogits)
+#
+#    # dispersion parameter
+#    #x = AverageChannel()(targets)
+#    #x = layers.Concatenate(axis=-1)([latent_inputs, targets])
+#    x = layers.Dense(params['nhiddendecoder'], activation='relu')(targets)
+#
+#    p0logit = layers.Dense(1)(x)
+#    r = layers.Dense(1)(x)
+#    r = layers.Activation(activation=tf.math.softplus)(r)
+#    r = ClipLayer(1e-10, 1e5)(r)
+#
+#    prob_loss = NegativeMultinomialEndpointV2()([mullogits, p0logit, r, targets])
+#
+#    decoder = keras.Model([latent_inputs, target_inputs],
+#                           prob_loss, name="decoder")
+#
+#    return decoder
+#
+#def create_decoder_v23(params):
+#    warnings.warn("create_decoder_v23 is experimental and may be removed.",
+#                  type=DeprecationWarning)
+#
+#    nsamples = params['nsamples']
+#    input_shape = (params['datadims'],)
+#    latent_dim = params['latentdims']
+#
+#    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+#
+#    x = latent_inputs
+#
+#    for nhidden in range(params['nlayers_d']):
+#        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+#        x = layers.Dropout(params['hidden_d_dropout'])(x)
+#
+#    target_inputs = keras.Input(shape=input_shape, name='targets')
+#
+#    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+#
+#    # multinomial part
+#    mullogits = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(x)
+#
+#    mullogits = AddBiasLayer(name='extra_bias')(mullogits)
+#
+#    # dispersion parameter
+#    x = layers.Dense(128, activation='relu')(targets)
+#    x = layers.BatchNormalization()(x)
+#    x = layers.Dense(128, activation='relu')(x)
+#    x = layers.BatchNormalization()(x)
+#    #x = AverageChannel()(targets)
+#    #x = layers.Concatenate(axis=-1)([latent_inputs, targets])
+#    #x = layers.Dense(params['nhiddendecoder'], activation='relu')(x)
+#
+#    p0logit = layers.Dense(1)(x)
+#    r = layers.Dense(1)(x)
+#    r = layers.Activation(activation=tf.math.softplus)(r)
+#    r = ClipLayer(1e-10, 1e5)(r)
+#
+#    prob_loss = NegativeMultinomialEndpointV2()([mullogits, p0logit, r, targets])
+#
+#    decoder = keras.Model([latent_inputs, target_inputs],
+#                           prob_loss, name="decoder")
+#
+#    return decoder
+
 def create_batch_decoder(params):
 
     nsamples = params['nsamples']
@@ -427,9 +606,123 @@ def create_batch_decoder(params):
                            prob_loss, name="decoder")
 
     return decoder
-#
-def create_batchlatent_decoder(params):
 
+
+#def create_batch_decoder_v20(params):
+#    warnings.warn("create_batch_decoder_v20 is experimental and may be removed.",
+#                  type=DeprecationWarning)
+#
+#    nsamples = params['nsamples']
+#    input_shape = (params['datadims'],)
+#    latent_dim = params['latentdims']
+#    batch_dim = params['batchnames']
+#
+#    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+#    
+#    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+#    batch_layer = batch_inputs
+#
+#    if len(batch_layer)>1:
+#        batch_layer = layers.Concatenate()(batch_layer)
+#    else:
+#        batch_layer = batch_layer[0]
+#    batch_layer = layers.RepeatVector(nsamples)(batch_layer)
+#
+#    #x = layers.Concatenate()([latent_inputs, batch_layer])
+#    x = latent_inputs
+#
+#    for nhidden in range(params['nlayers_d']):
+#        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+#        x = layers.Dropout(params['hidden_d_dropout'])(x)
+#
+#    target_inputs = keras.Input(shape=input_shape, name='targets')
+#
+#    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+#
+#    # multinomial part
+#    logits = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(x)
+#
+#    logits = AddBiasLayer(name='extra_bias')(logits)
+#
+#    logits_batch = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits_batch',
+#                          use_bias=False)(batch_layer)
+#
+#    logits = layers.Add()([logits, logits_batch])
+#
+#    # dispersion parameter
+#    r = ScalarBiasLayer()(x)
+#    r = layers.Activation(activation=tf.math.softplus)(r)
+#    r = ClipLayer(1e-10, 1e5)(r)
+#
+#    prob_loss = NegativeMultinomialEndpoint()([logits, r, targets])
+#
+#    decoder = keras.Model([latent_inputs, target_inputs, batch_inputs],
+#                           prob_loss, name="decoder")
+#
+#    return decoder
+#
+#def create_batch_decoder_v21(params):
+#    warnings.warn("create_batch_decoder_v21 is experimental and may be removed.",
+#                  type=DeprecationWarning)
+#
+#    nsamples = params['nsamples']
+#    input_shape = (params['datadims'],)
+#    latent_dim = params['latentdims']
+#    batch_dim = params['batchnames']
+#
+#    latent_inputs = keras.Input(shape=(nsamples, latent_dim,), name='latent_input')
+#    
+#    batch_inputs = [keras.Input(shape=(ncat,), name='batch_input') for bname, ncat in zip(params['batchnames'], params['nbatchcats'])]
+#    batch_layer = batch_inputs
+#
+#    if len(batch_layer)>1:
+#        batch_layer = layers.Concatenate()(batch_layer)
+#    else:
+#        batch_layer = batch_layer[0]
+#    batch_layer = layers.RepeatVector(nsamples)(batch_layer)
+#
+#    x = layers.Concatenate()([latent_inputs, batch_layer])
+#    #x = latent_inputs
+#
+#    for nhidden in range(params['nlayers_d']):
+#        x = layers.Dense(params['nhiddendecoder'], activation="relu")(x)
+#        x = layers.Dropout(params['hidden_d_dropout'])(x)
+#
+#    target_inputs = keras.Input(shape=input_shape, name='targets')
+#
+#    targets = layers.Reshape((1, params['datadims']))(target_inputs)
+#
+#    # multinomial part
+#    logits = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(x)
+#
+#    logits = AddBiasLayer(name='extra_bias')(logits)
+#
+#    logits_batch = layers.Dense(params['datadims'],
+#                          activation='linear', name='logits',
+#                          use_bias=False)(batch_layer)
+#
+#    logits = layers.Add()([logits, logits_batch])
+#
+#    # dispersion parameter
+#    r = ScalarBiasLayer()(x)
+#    r = layers.Activation(activation=tf.math.softplus)(r)
+#    r = ClipLayer(1e-10, 1e5)(r)
+#
+#    prob_loss = NegativeMultinomialEndpoint()([logits, r, targets])
+#
+#    decoder = keras.Model([latent_inputs, target_inputs, batch_inputs],
+#                           prob_loss, name="decoder")
+#
+#    return decoder
+
+def create_batchlatent_decoder(params):
+    warnings.warn("create_batchlatent_decoder is experimental and may be removed.",
+                  type=DeprecationWarning)
     nsamples = params['nsamples']
     input_shape = (params['datadims'],)
     latent_dim = params['latentdims']
