@@ -165,12 +165,12 @@ def get_variable_regions(adata, groupby="louvain",
             for ib, cat in enumerate(cats):
                 onehot[adata.obs[batch].values==cat, ib]=1
             adata.obsm[batch] = onehot
-    if groupby not in adata.obsm:
-        cats = adata.obs[groupby].cat.categories.tolist()
-        onehot = np.zeros((adata.shape[0], len(cats)))
-        for ib, cat in enumerate(cats):
-            onehot[adata.obs[groupby].values==cat, ib]=1
-        adata.obsm[groupby] = onehot
+    #if groupby not in adata.obsm:
+    cats = adata.obs[groupby].cat.categories.tolist()
+    onehot = np.zeros((adata.shape[0], len(cats)))
+    for ib, cat in enumerate(cats):
+        onehot[adata.obs[groupby].values==cat, ib]=1
+    adata.obsm[groupby] = onehot
 
     mlr = MultiLogisticRegression(adata, groupby, batches)
     mlr.fit(adata, epochs=niter)
