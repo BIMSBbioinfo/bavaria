@@ -11,6 +11,7 @@ from nmvae.layers import BatchLoss
 from nmvae.layers import ScalarBiasLayer
 from nmvae.layers import AddBiasLayer
 from nmvae.layers import AverageChannel
+from nmvae.layers import MutInfoLayer
 from nmvae.layers import NegativeMultinomialEndpoint
 from nmvae.layers import NegativeMultinomialEndpointV2
 
@@ -40,6 +41,43 @@ def create_encoder(params):
     z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
     z_log_var = ClipLayer(-10., 10.)(z_log_var)
 
+    z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
+
+    z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])
+
+    encoder = keras.Model(encoder_inputs, z, name="encoder")
+
+    return encoder
+
+
+def create_encoder_mutinfo(params):
+    """ Encoder without batch correction."""
+    input_shape = (params['datadims'],)
+    latent_dim = params['latentdims']
+
+    encoder_inputs = keras.Input(shape=input_shape,
+                                 name='input_data')
+
+    x = encoder_inputs
+
+    #xinit = layers.Dropout(params['inputdropout'])(x)
+    xinit = x
+
+    nhidden_e = params['nhidden_e']
+    xinit = layers.Dense(nhidden_e, activation="relu")(xinit)
+    for _ in range(params['nlayers_e']):
+        x = layers.Dense(nhidden_e, activation="relu")(xinit)
+        #x = layers.Dropout(params['hidden_e_dropout'])(x)
+        x = layers.Dense(nhidden_e)(x)
+        x = layers.Add()([x, xinit])
+        xinit = layers.Activation(activation='relu')(x)
+
+    x = xinit
+    z_mean = layers.Dense(latent_dim, name="z_mean")(x)
+    z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
+    z_log_var = ClipLayer(-10., 10.)(z_log_var)
+
+    z_mean = MutInfoLayer()(z_mean)
     z_mean, z_log_var = KLlossLayer()([z_mean, z_log_var])
 
     z = Sampling(params['nsamples'], name='random_latent')([z_mean, z_log_var])

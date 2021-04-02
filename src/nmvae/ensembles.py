@@ -74,6 +74,8 @@ class EnsembleVAE:
         """ Create VAE model"""
         if name == 'vae':
             model = VAE.create(space, create_encoder, create_decoder)
+        elif name == 'vae-ml':
+            model = VAE.create(space, create_encoder_mutinfo, create_decoder)
         elif name == 'bcvae':
             model = BCVAE2.create(space, create_batch_encoder, create_batch_decoder)
         elif name == 'bcvae2':
@@ -89,6 +91,8 @@ class EnsembleVAE:
     def _load(self, path):
         """ Reload VAE model"""
         if self.name == 'vae':
+            model = VAE.load(path)
+        elif self.name == 'vae-ml':
             model = VAE.load(path)
         elif self.name == 'bcvae':
             model = BCVAE2.load(path)

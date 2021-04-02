@@ -9,6 +9,7 @@ from nmvae.layers import AddBiasLayer
 from nmvae.layers import ScalarBiasLayer
 from nmvae.layers import BatchLoss
 from nmvae.layers import ExpandDims
+from nmvae.layers import MutInfoLayer
 from keras.models import load_model
 
 class VAE(tf.keras.Model):
@@ -49,6 +50,7 @@ class VAE(tf.keras.Model):
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
                           'NegativeMultinomialEndpointV2': NegativeMultinomialEndpointV2,
                           'AddBiasLayer': AddBiasLayer,
+                          'MutInfoLayer': MutInfoLayer,
                           'ScalarBiasLayer':ScalarBiasLayer,
                          }
         encoder = load_model(f + '_encoder_' + s, custom_objects=custom_objects)
@@ -307,6 +309,7 @@ class BCVAE2(tf.keras.Model):
                           'ClipLayer': ClipLayer,
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
                           'AddBiasLayer': AddBiasLayer,
+                          'MutInfoLayer': MutInfoLayer,
                           'ScalarBiasLayer':ScalarBiasLayer,
                          }
         encoder = load_model(f + '_encoder_' + s, custom_objects=custom_objects)
@@ -435,6 +438,7 @@ class BAVARIA(tf.keras.Model):
                           'ExpandDims': ExpandDims,
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
                           'AddBiasLayer': AddBiasLayer,
+                          'MutInfoLayer': MutInfoLayer,
                           'ScalarBiasLayer':ScalarBiasLayer,
                          }
         encoder = load_model(f + '_encoder_' + s, custom_objects=custom_objects)
@@ -565,6 +569,7 @@ class BAVARIA2(tf.keras.Model):
                           'ExpandDims': ExpandDims,
                           'NegativeMultinomialEndpoint': NegativeMultinomialEndpoint,
                           'AddBiasLayer': AddBiasLayer,
+                          'MutInfoLayer': MutInfoLayer,
                           'ScalarBiasLayer':ScalarBiasLayer,
                          }
         encoder = load_model(f + '_encoder_' + s, custom_objects=custom_objects)

@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import layers
+from tensorflow.keras import initializers
 
 @tf.function
 def multinomial_likelihood(targets, p):
@@ -162,6 +163,84 @@ class ScalarBiasLayer(layers.Layer):
     def call(self, x):
         return tf.ones((tf.shape(x)[0],) + (1,)*(len(x.shape.as_list())-1))*self.bias
 
+
+class MutInfoLayer(layers.Layer):
+    def __init__(self, start_delay=100, *args, **kwargs):
+        self.start_delay = start_delay
+        super(MutInfoLayer, self).__init__(*args, **kwargs)
+
+    def get_config(self):
+        config = {'start_delay':self.start_delay}
+        base_config = super(MutInfoLayer, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def build(self, input_shape):
+        #input_shape = tensor_shape.TensorShape(input_shape)
+        print('MutInfoLayer', input_shape)
+
+        self.moving_mean = self.add_weight(
+          name='moving_mean',
+          shape=[1 for _ in input_shape[:-1]] + [input_shape[-1]],
+          dtype='float32',
+          trainable=False,
+          initializer=initializers.get('zeros'),)
+
+        self.delay_count = self.add_weight(
+          name='delay',
+          shape=(),
+          dtype='float32',
+          trainable=False,
+          initializer=initializers.get('zeros'),)
+
+        self.delay_count.assign_add(-self.start_delay)
+
+        #print(self.moving_mean)
+        #print(self.delay_count)
+        self.built=True
+
+    def call(self, x, training=None):
+        input_shape = tf.shape(x)
+
+        def _operation():
+            # compute covariance
+            #x_zero = x - self.moving_mean
+            x_zero = x - self.moving_mean
+            x_zero_0 = tf.expand_dims(x_zero, -1)
+            x_zero_1 = tf.expand_dims(x_zero, -2)
+            cov = tf.reduce_mean(x_zero_0*x_zero_1, axis=[i for i in range(len(input_shape)-1)])
+            cov = cov + tf.eye(cov.shape[0])
+  
+            tf.debugging.assert_positive(tf.linalg.det(cov))
+
+            #ml_loss = -0.5 * (tf.linalg.logdet(cov) - tf.reduce_sum(tf.math.log(tf.linalg.diag_part(cov))))
+            ml_loss = -0.5 * (tf.linalg.logdet(cov) - tf.reduce_sum(tf.math.log(tf.linalg.diag_part(cov))))
+            return ml_loss
+
+        # update feature means
+        if training is None or training:
+            self.delay_count.assign_add(1)
+            x_mean = tf.math.reduce_mean(x, axis=[i for i in range(len(input_shape)-1)], keepdims=True)
+            self.moving_mean.assign(.3*self.moving_mean + .7 *x_mean)
+
+        ml_loss = tf.case([(tf.less(self.delay_count, 1), lambda: tf.constant(0.0))], default=_operation)
+
+            # compute covariance
+            #x_zero = x - self.moving_mean
+            #x_zero_0 = tf.expand_dims(x_zero, -1)
+            #x_zero_1 = tf.expand_dims(x_zero, -2)
+            #cov = tf.reduce_mean(x_zero_0*x_zero_1, axis=[i for i in range(len(input_shape)-1)])
+            #
+            ## compute ML loss
+            ## mut. info. assuming multivariate gaussian
+            ##print(cov)
+            #ml_loss = -0.5 * (tf.linalg.logdet(cov) - tf.reduce_sum(tf.math.log(tf.linalg.diag_part(cov))))
+
+            ## start loss after some delay
+            #ml_loss = ml_loss * tf.clip_by_value(self.delay_count, clip_value_min=0.0, clip_value_max=1.0)
+
+        self.add_loss(ml_loss)
+        
+        return x
 
 class AddBiasLayer(layers.Layer):
     def build(self, input_shape):

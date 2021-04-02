@@ -110,6 +110,7 @@ def main(args=None):
                                                                                           'bavaria-0', 'bavaria', 
                                                                                           'bcvae', 'bcvae2', 
                                                                                            'vae',
+                                                                                           'vae-ml',
                                                                                          ],
                         help="Model name for batch correction. Default: vae")
     parser.add_argument('-resolution', dest='resolution', type=float, default=1.,
