@@ -199,7 +199,7 @@ class EnsembleVAE:
     def encode_full(self, adata, batch_size=64, skip_outliers=True):
         tf_x = self._get_dataset_truebatchlabels(adata.X, adata, batch_size=batch_size)
 
-        if not skip_outliers:
+        if skip_outliers:
             performance = []
             for model in self.models:
                 perf = model.evaluate(tf_x, return_dict=True)
