@@ -14,31 +14,30 @@ Installation
 
 ::
 
-    pip install https://github.com/BIMSBbioinfo/bavaria/archive/v0.0.1.zip
+    pip install https://github.com/BIMSBbioinfo/bavaria/archive/v0.1.0.zip
 
 
 Documentation
 =============
 
-The tool offers a command line interface that, given a count matrix, fits a models and predicts
-the corresponding latent features and stores them in the output directory.
-The minimally required options are
+BAVARIA offers a command line interface that fits an ensemble of BAVARIA models
+given a raw count matrix (-data)
+Subsequently, the model parameters and latent features
+are stored in the output directory (-output)
 
 ::
 
-   bavaria -data <matrix.mtx> 
-         -regions <regions.bed> 
-         -barcodes <barcodes.tsv>
-         -output <outputdir>
+   bavaria -data adata.h5ad \
+         -output <outputdir> \
+         -epochs 200 \
+         -nrepeats 10 \
+         -nlatent 15 \
+         -batchnames batch \
+         -modelname bavaria
  
-matrix.mtx represents a regions by cells matrix in matrix market format.
-regions.bed and barcodes.tsv represent the row and column annotations.
-outputdir represents the output directory, in which the latent features are stored (latent.tsv) as well as the trained models.
+Additional information on available hyper-parameters are available through
 
-Additional hyperparameters for the networks, such as batch-sizes, number of epochs, etc. are
-initialized with sensible default parameters. 
-However, they might need to be adjusted
-depending on the dataset at hand.
-In particular, we often found 
-the number of latent features (nlatent), number of epochs (epochs), batch-size (batch_size)
-to require adjustments depending on the dataset.
+::
+
+  bavaria -h
+
