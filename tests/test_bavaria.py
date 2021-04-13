@@ -3,15 +3,15 @@ import os
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from nmvae.cli import main
-from nmvae.utils import softmax1p, softmax1p0
-from nmvae.utils import SparseSequence
-from nmvae.utils import ScalarBiasLayer
-from nmvae.utils import PaddingLayer
-from nmvae.utils import AddBiasLayer
-from nmvae.utils import load_data
-from nmvae.utils import VAE, HyperVAE, CustomTuner
-from nmvae.utils import create_flat_encoder, create_decoder
+from bavaria.cli import main
+from bavaria.utils import softmax1p, softmax1p0
+from bavaria.utils import SparseSequence
+from bavaria.utils import ScalarBiasLayer
+from bavaria.utils import PaddingLayer
+from bavaria.utils import AddBiasLayer
+from bavaria.utils import load_data
+from bavaria.utils import VAE, HyperVAE, CustomTuner
+from bavaria.utils import create_flat_encoder, create_decoder
 
 import keras
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -100,7 +100,7 @@ def test_addextrabias():
 
     np.testing.assert_allclose(pred + 1., pred1)
 
-def test_nmvae_flat(tmpdir):
+def test_bavaria_flat(tmpdir):
     (x_train, y_train), (x_test, y_test) = load_data('mnist')
     params = {
       'nhidden_e_0': 32,
@@ -139,7 +139,7 @@ def test_nmvae_flat(tmpdir):
     np.testing.assert_allclose(model.encoder_predict(x_train[:2]),
                                model2.encoder_predict(x_train[:2]))
 
-def test_nmvae_flat_saveload(tmpdir):
+def test_bavaria_flat_saveload(tmpdir):
     (x_train, y_train), (x_test, y_test) = load_data('mnist')
     params = {
       'nhidden_e_0': 32,
@@ -172,12 +172,12 @@ def test_nmvae_flat_saveload(tmpdir):
                                model2.encoder_predict(x_train[:2]))
 
 
-def test_hypernmvae_flat(tmpdir):
+def test_hyperbavaria_flat(tmpdir):
     (x_train, y_train), (x_test, y_test) = load_data('mnist')
     biases = x_train.sum(0)
     biases /= biases.sum()
 
-    build_model = HyperVAE('nmvae-flat', x_train.shape[-1], 3, biases)
+    build_model = HyperVAE('bavaria-flat', x_train.shape[-1], 3, biases)
     hp = build_model.factory.get_hyperparameters()
 
     path = tmpdir.strpath
@@ -210,7 +210,7 @@ def test_hypernmvae_flat(tmpdir):
     tuner.results_summary()
 
 
-def test_nmvae_flat_saveload_callback(tmpdir):
+def test_bavaria_flat_saveload_callback(tmpdir):
     (x_train, y_train), (x_test, y_test) = load_data('mnist')
     params = {
       'nhidden_e_0': 32,

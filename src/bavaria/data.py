@@ -1,7 +1,7 @@
 import os
 from anndata import AnnData
 from anndata import read_h5ad
-from nmvae.countmatrix import CountMatrix
+from bavaria.countmatrix import CountMatrix
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder

@@ -24,7 +24,7 @@ def read(*names, **kwargs):
 
 
 setup(
-    name='nmvae',
+    name='bavaria',
     version='0.0.1',
     license='LGPL-3.0-or-later',
     description='Negative multinomial variational auto-encoder',
@@ -34,7 +34,7 @@ setup(
     ),
     author='Wolfgang Kopp',
     author_email='wolfgang.kopp@mdc-berlin.de',
-    url='https://github.com/wkopp/nmvae',
+    url='https://github.com/wkopp/bavaria',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -58,9 +58,9 @@ setup(
         'Private :: Do Not Upload',
     ],
     project_urls={
-        'Documentation': 'https://nmvae.readthedocs.io/',
-        'Changelog': 'https://nmvae.readthedocs.io/en/latest/changelog.html',
-        'Issue Tracker': 'https://github.com/wkopp/nmvae/issues',
+        'Documentation': 'https://bavaria.readthedocs.io/',
+        'Changelog': 'https://bavaria.readthedocs.io/en/latest/changelog.html',
+        'Issue Tracker': 'https://github.com/wkopp/bavaria/issues',
     },
     keywords=[
         # eg: 'keyword1', 'keyword2', 'keyword3',
@@ -84,7 +84,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'nmvae = nmvae.cli:main',
+            'bavaria = bavaria.cli:main',
         ]
     },
 )

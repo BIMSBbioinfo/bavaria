@@ -2,6 +2,6 @@
 Usage
 =====
 
-To use nmvae in a project::
+To use bavaria in a project::
 
-	import nmvae
+	import bavaria

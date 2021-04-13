@@ -6,11 +6,11 @@ Why does this file exist, and why not put this in __main__?
   You might be tempted to import things from __main__ later, but that will cause
   problems: the code will get executed twice:
 
-  - When you run `python -mnmvae` python will execute
+  - When you run `python -mbavaria` python will execute
     ``__main__.py`` as a script. That means there won't be any
-    ``nmvae.__main__`` in ``sys.modules``.
+    ``bavaria.__main__`` in ``sys.modules``.
   - When you import __main__ it will get executed again (as a module) because
-    there's no ``nmvae.__main__`` in ``sys.modules``.
+    there's no ``bavaria.__main__`` in ``sys.modules``.
 
   Also see (1) from http://click.pocoo.org/5/setuptools/#setuptools-integration
 """
@@ -20,22 +20,22 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import keras
-from nmvae import __version__
-from nmvae.ensembles import EnsembleVAE
-from nmvae.ensembles import BatchEnsembleVAE
-from nmvae.data import load_data
-from nmvae.data import load_batch_labels
-from nmvae.data import one_hot_encode_batches
-from nmvae.utils import resnet_vae_params
-from nmvae.utils import resnet_vae_batch_params
-from nmvae.utils import get_variable_regions
+from bavaria import __version__
+from bavaria.ensembles import EnsembleVAE
+from bavaria.ensembles import BatchEnsembleVAE
+from bavaria.data import load_data
+from bavaria.data import load_batch_labels
+from bavaria.data import one_hot_encode_batches
+from bavaria.utils import resnet_vae_params
+from bavaria.utils import resnet_vae_batch_params
+from bavaria.utils import get_variable_regions
 import scanpy as sc
 import logging
 
 
 def main(args=None):
 
-    parser = argparse.ArgumentParser('nmvae',
+    parser = argparse.ArgumentParser('bavaria',
                                      description=f'Negative multinomial variational auto-encoders - v{__version__}')
 
     parser.add_argument('-data', dest='data', type=str,
@@ -157,7 +157,7 @@ def main(args=None):
 
     adata = metamodel.encode(adata)
 
-    sc.pp.neighbors(adata, n_neighbors=15, use_rep="nmvae-ensemble")
+    sc.pp.neighbors(adata, n_neighbors=15, use_rep="bavaria-ensemble")
     sc.tl.louvain(adata, resolution=args.resolution)
     sc.tl.umap(adata)
 

@@ -1,15 +1,15 @@
 import os
 import tensorflow as tf
-from nmvae.layers import Sampling
-from nmvae.layers import KLlossLayer
-from nmvae.layers import ClipLayer
-from nmvae.layers import NegativeMultinomialEndpoint
-from nmvae.layers import NegativeMultinomialEndpointV2
-from nmvae.layers import AddBiasLayer
-from nmvae.layers import ScalarBiasLayer
-from nmvae.layers import BatchLoss
-from nmvae.layers import ExpandDims
-from nmvae.layers import MutInfoLayer
+from bavaria.layers import Sampling
+from bavaria.layers import KLlossLayer
+from bavaria.layers import ClipLayer
+from bavaria.layers import NegativeMultinomialEndpoint
+from bavaria.layers import NegativeMultinomialEndpointV2
+from bavaria.layers import AddBiasLayer
+from bavaria.layers import ScalarBiasLayer
+from bavaria.layers import BatchLoss
+from bavaria.layers import ExpandDims
+from bavaria.layers import MutInfoLayer
 from keras.models import load_model
 
 class VAE(tf.keras.Model):

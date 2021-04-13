@@ -14,7 +14,7 @@ Installation
 
 ::
 
-    pip install https://github.com/BIMSBbioinfo/nmvae/archive/v0.0.1.zip
+    pip install https://github.com/BIMSBbioinfo/bavaria/archive/v0.0.1.zip
 
 
 Documentation
@@ -26,7 +26,7 @@ The minimally required options are
 
 ::
 
-   nmvae -data <matrix.mtx> 
+   bavaria -data <matrix.mtx> 
          -regions <regions.bed> 
          -barcodes <barcodes.tsv>
          -output <outputdir>

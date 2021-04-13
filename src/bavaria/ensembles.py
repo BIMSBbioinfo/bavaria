@@ -5,10 +5,10 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import CSVLogger
 import pandas as pd
 import numpy as np
-from nmvae.vae_models import *
-from nmvae.model_components import *
-from nmvae.data import to_dataset
-from nmvae.data import to_sparse
+from bavaria.vae_models import *
+from bavaria.model_components import *
+from bavaria.data import to_dataset
+from bavaria.data import to_sparse
 from scipy.stats import iqr
 
 class EnsembleVAE:
@@ -188,10 +188,10 @@ class EnsembleVAE:
             out = model.encoder_predict.predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
-            adata.obsm[f'nmvae-run_{i+1}'] = out
+            adata.obsm[f'bavaria-run_{i+1}'] = out
             dfs.append(df)
         df = pd.concat(dfs, axis=1)
-        adata.obsm['nmvae-ensemble'] = df.values
+        adata.obsm['bavaria-ensemble'] = df.values
         df.to_csv(os.path.join(self.output, 'latent.csv'))
         return adata
 
@@ -221,10 +221,10 @@ class EnsembleVAE:
             out = model.encoder_predict.predict(tf_x)
             df = pd.DataFrame(out, index=adata.obs.index, columns=[f'D{i}-{n}' for n in range(out.shape[1])])
             df.to_csv(os.path.join(self.output, f'repeat_{i+1}', 'latent.csv'))
-            adata.obsm[f'nmvae-run_{i+1}'] = out
+            adata.obsm[f'bavaria-run_{i+1}'] = out
             dfs.append(df)
         df = pd.concat(dfs, axis=1)
-        adata.obsm['nmvae-ensemble'] = df.values
+        adata.obsm['bavaria-ensemble'] = df.values
         df.to_csv(os.path.join(self.output, 'latent.csv'))
         return adata
 
