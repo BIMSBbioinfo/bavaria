@@ -4,6 +4,11 @@ BAVARIA
 
 BAVARIA is python package that implements a
 Batch-adversarial Variational auto-encoder with Negative Multinomial reconstruction loss for single-cell ATAC-seq analysis.
+::
+
+  .. image:: bavaria_scheme.svg
+   :width: 600
+
 In particular, the model can be used to extract a latent feature representation of
 a cell which can be used for downstream analysis tasks, including cell cluster,
 cell identification, etc.
