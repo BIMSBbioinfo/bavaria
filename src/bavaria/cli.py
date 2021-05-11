@@ -89,14 +89,14 @@ def main(args=None):
                              " Too high numbers for these parameters degrades the quality of the latent features. "
                              "Default: 16.")
     parser.add_argument('-inputdropout', dest='inputdropout', type=float,
-                        default=0.15,
-                        help="Dropout rate applied at the inital layer (e.g. input accessibility profile). Default=0.15")
+                        default=0.0,
+                        help="Dropout rate applied at the inital layer (e.g. input accessibility profile). Default=0.0")
     parser.add_argument("-hidden_e_dropout", dest="hidden_e_dropout", type=float,
-                        default=0.3,
-                        help="Dropout applied in each residual block of the encoder. Default=0.3")
+                        default=0.0,
+                        help="Dropout applied in each residual block of the encoder. Default=0.0")
     parser.add_argument("-hidden_d_dropout", dest="hidden_d_dropout", type=float,
-                        default=0.3,
-                        help="Dropout applied after each decoder hidden layer. Default=0.3")
+                        default=0.0,
+                        help="Dropout applied after each decoder hidden layer. Default=0.0")
     parser.add_argument("-feature_fraction", dest="feature_fraction", type=float, default=1.,
                         help="Whether to use a random subset of features. feature_fraction determines the proportion of features to use. Default=1.")
     parser.add_argument("-batches", dest="batches", type=str, default=None,
@@ -166,5 +166,4 @@ def main(args=None):
         params['batchnames'] = None
     adata = get_variable_regions(adata, batches=params['batchnames'])
     adata.write(os.path.join(args.output, "analysis.h5ad"))
-    print(adata)
     print('saved to ' + os.path.join(args.output, "analysis.h5ad"))
