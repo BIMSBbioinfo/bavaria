@@ -25,7 +25,7 @@ def read(*names, **kwargs):
 
 setup(
     name='bavaria',
-    version='0.0.1',
+    version='0.0.2',
     license='LGPL-3.0-or-later',
     description='Negative multinomial variational auto-encoder',
     long_description='%s\n%s' % (
