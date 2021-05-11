@@ -274,8 +274,8 @@ class BatchEnsembleVAE(EnsembleVAE):
     def _get_dataset_truebatchlabels(self, x_data, adata, batch_size=64):
         """ used without dummy labels"""
         tf_x = super()._get_dataset_truebatchlabels(x_data, adata, batch_size=batch_size)
-        if self.conditional:
-            tf_x = tf.data.Dataset.zip((tf_x,))
+        #if self.conditional:
+        #    tf_x = tf.data.Dataset.zip((tf_x,))
         return tf_x
 
     def _get_dataset_dummybatchlabels(self, x_data, adata, batch_size=64):
