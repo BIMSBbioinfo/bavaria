@@ -45,3 +45,19 @@ Additional information on available hyper-parameters are available through
 
   bavaria -h
 
+Tutorial
+========
+
+Tutorials are available here:
+
++----------------------------------------------------+
+| Example notebooks                                  |
++====================================================+
+| `Data preparation PBMC integration`_               |
++----------------------------------------------------+
+| `Using BAVARIA to integrate PBMC data`_            |
++----------------------------------------------------+
+
+.. _`Data preparation PBMC integration`: https://nbviewer.jupyter.org/github/BIMSBbioinfo/bavaria/blob/master/tutorial/00_preparation.ipynb
+.. _`Using BAVARIA to integrate PBMC data`: https://nbviewer.jupyter.org/github/BIMSBbioinfo/bavaria/blob/master/tutorial/01_pbmc_integration.ipynb
+
