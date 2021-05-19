@@ -5,7 +5,7 @@ from bavaria.countmatrix import CountMatrix
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
-from scipy.sparse import issparse, coo_matrix
+from scipy.sparse import issparse, coo_matrix, csr_matrix
 import tensorflow as tf
 
 def load_batch_labels(adata, batches):
@@ -25,7 +25,10 @@ def one_hot_encode_batches(adata, batchnames):
 
 def load_data(data, regions, cells):
     if data.endswith('.h5ad'):
-        return read_h5ad(data)
+        adata = read_h5ad(data)
+        if not issparse(adata.X):
+            adata.X = csr_matrix(adata.X)
+        return adata
     cmat = CountMatrix.from_mtx(data, regions, cells)
     cmat = cmat.filter(binarize=True)
     cm=cmat.cmat.T.tocsr().astype('float32')
