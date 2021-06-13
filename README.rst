@@ -16,10 +16,17 @@ The package is freely available under a GNU Lesser General Public License v3 or 
 Installation
 ============
 
+You can install the package version v0.1.0 via
+
 ::
 
     pip install https://github.com/BIMSBbioinfo/bavaria/archive/v0.1.0.zip
 
+Alternatively, you can install the latest version from the master branch using
+
+::
+
+    pip install git+https://github.com/BIMSBbioinfo/bavaria.git
 
 Documentation
 =============
