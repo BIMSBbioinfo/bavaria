@@ -148,15 +148,15 @@ class MultiLogisticRegression:
 
 
 def get_variable_regions(adata, groupby="louvain",
-                         batches=['batch'], niter=1000):
+                         batches=['dummy'], niter=1000):
     """Extract variable regions relative to clustering."""
 
     if 'readdepth' not in adata.obs.columns:
         adata.obs['rdepth'] = np.asarray(adata.X.sum(1)).flatten()
 
     if batches is None:
-        batches = ['batch']
-        adata.obs.loc[:,'batch'] = pd.Categorical(['dummy']*adata.shape[0])
+        batches = ['dummy']
+        adata.obs.loc[:,'dummy'] = pd.Categorical(['dummy']*adata.shape[0])
     
     for batch in batches or []:
         if batch not in adata.obsm:
