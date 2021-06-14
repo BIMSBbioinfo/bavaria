@@ -55,7 +55,16 @@ Additional information on available hyper-parameters are available through
 Tutorial
 ========
 
-Tutorials are available here:
+
+Below you find links to the tutorials. 
+The tutorials will require jupyter and other resources which are defined in
+:code:`tutorial/requirements.txt`. Using the requirements file you instantiate
+a new conda environment using 
+
+.. code:: bash
+
+    conda create --name bavaria_tutorial --file tutorial/requirements.txt
+
 
 +----------------------------------------------------+
 | Example notebooks                                  |
