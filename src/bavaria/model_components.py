@@ -596,7 +596,8 @@ def create_batch_decoder(params):
     logits = AddBiasLayer(name='extra_bias')(logits)
 
     # dispersion parameter
-    r = ScalarBiasLayer()(x)
+    r = layers.Dense(1)(batch_layer)
+    #r = ScalarBiasLayer()(x)
     r = layers.Activation(activation=tf.math.softplus)(r)
     r = ClipLayer(1e-10, 1e5)(r)
 
