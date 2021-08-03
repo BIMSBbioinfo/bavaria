@@ -194,8 +194,6 @@ class MutInfoLayer(layers.Layer):
 
         self.delay_count.assign_add(-self.start_delay)
 
-        #print(self.moving_mean)
-        #print(self.delay_count)
         self.built=True
 
     def call(self, x, training=None):
@@ -203,7 +201,6 @@ class MutInfoLayer(layers.Layer):
 
         def _operation():
             # compute covariance
-            #x_zero = x - self.moving_mean
             x_zero = x - self.moving_mean
             x_zero_0 = tf.expand_dims(x_zero, -1)
             x_zero_1 = tf.expand_dims(x_zero, -2)
@@ -212,7 +209,6 @@ class MutInfoLayer(layers.Layer):
   
             tf.debugging.assert_positive(tf.linalg.det(cov))
 
-            #ml_loss = -0.5 * (tf.linalg.logdet(cov) - tf.reduce_sum(tf.math.log(tf.linalg.diag_part(cov))))
             ml_loss = -0.5 * (tf.linalg.logdet(cov) - tf.reduce_sum(tf.math.log(tf.linalg.diag_part(cov))))
             return ml_loss
 
