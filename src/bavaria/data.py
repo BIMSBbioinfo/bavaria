@@ -62,7 +62,7 @@ def to_sparse(x):
 
 
 def to_sparse_tensor(x):
-    return tf.SparseTensor(indices=np.mat([x.row, x.col]).transpose(), values=x.data, dense_shape=x.shape)
+    return tf.sparse.reorder(tf.SparseTensor(indices=np.mat([x.row, x.col]).transpose(), values=x.data, dense_shape=x.shape))
 
 
 def to_dataset(x, y=None, batch_size=64, shuffle=True):
